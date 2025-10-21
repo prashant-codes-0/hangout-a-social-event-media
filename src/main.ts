@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,10 +17,32 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+
+  // Global response interceptor
+  app.useGlobalInterceptors(new ResponseInterceptor());
+
+  // Global exception filter
+  app.useGlobalFilters(new HttpExceptionFilter());
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('🏖️ Hangout App API')
-    .setDescription('A social event-based platform where users can discover, create, and join hangouts — real-world meetups organized around shared interests, venues, and sponsors.')
+    .setDescription(`
+      A social event-based platform where users can discover, create, and join hangouts — real-world meetups organized around shared interests, venues, and sponsors.
+      
+      ## Response Format
+      All API responses follow a consistent format:
+      \`\`\`json
+      {
+        "success": true,
+        "statusCode": 200,
+        "message": "Operation completed successfully",
+        "data": { ... },
+        "timestamp": "2024-12-20T10:00:00.000Z"
+      }
+      \`\`\`
+      
+      Error responses include an additional \`error\` field and \`success: false\`.
+    `)
     .setVersion('1.0')
     .addBearerAuth(
       {

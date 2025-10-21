@@ -1,5 +1,14 @@
 # Hangout App API Examples
 # Use with REST Client extension in VS Code or similar tools
+# 
+# All responses are wrapped in a consistent format:
+# {
+#   "success": true/false,
+#   "statusCode": 200,
+#   "message": "Operation completed successfully",
+#   "data": { ... },
+#   "timestamp": "2024-12-20T10:00:00.000Z"
+# }
 
 ### Sign Up
 POST http://localhost:3000/auth/signup

@@ -19,6 +19,32 @@ npm run start:dev
 
 **Interactive Swagger UI:** Visit `http://localhost:3000/api` after starting the server for complete API documentation with request/response examples and the ability to test endpoints directly.
 
+### 🌐 Global Response Format
+
+All API responses follow a consistent format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Operation completed successfully",
+  "data": { ... },
+  "timestamp": "2024-12-20T10:00:00.000Z"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "statusCode": 400,
+  "message": "Error description",
+  "error": "BadRequest",
+  "timestamp": "2024-12-20T10:00:00.000Z"
+}
+```
+
 ### Authentication
 
 #### Sign Up

@@ -24,6 +24,7 @@ import { HangoutsService } from './hangouts.service';
 import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
+import { ApiResponseDto } from '../common/dto/api-response.dto';
 
 @ApiTags('Hangouts')
 @Controller('hangouts')

@@ -96,7 +96,13 @@ export class AuthService {
     return this.userModel.findById(id);
   }
 
-  async verifyUser(userId: string, role: UserRole): Promise<User> {
+
+
+  /**
+   * Change the user's role and mark them verified.
+   * This is the behavior previously exposed as `verifyUser`.
+   */
+  async changeRoleAndVerify(userId: string, role: UserRole): Promise<User> {
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -104,6 +110,21 @@ export class AuthService {
 
     user.verified = true;
     user.role = role;
+    await user.save();
+
+    return user;
+  }
+
+  /**
+   * Verify the user only (set verified = true) without changing role.
+   */
+  async verifyUserOnly(userId: string): Promise<User> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.verified = true;
     await user.save();
 
     return user;
