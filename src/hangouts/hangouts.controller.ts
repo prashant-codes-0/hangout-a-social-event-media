@@ -143,4 +143,31 @@ export class HangoutsController {
   addBlast(@Param('id') id: string) {
     return this.hangoutsService.addBlast(id);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('my-hangouts')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get hangouts created by the current user' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of hangouts created by current user',
+    type: [HangoutResponseDto]
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getMyHangouts(@Request() req) {
+    return this.hangoutsService.getMyHangouts(req.user.id);
+  }
+
+  @Get('by-user/:userId')
+  @ApiOperation({ summary: 'Get hangouts created by a specific user' })
+  @ApiParam({ name: 'userId', description: 'User ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of hangouts created by the specified user',
+    type: [HangoutResponseDto]
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  getHangoutsByUser(@Param('userId') userId: string) {
+    return this.hangoutsService.getHangoutsByUser(userId);
+  }
 }

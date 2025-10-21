@@ -99,3 +99,10 @@ Content-Type: application/json
   "userId": "USER_ID_HERE",
   "role": "admin"
 }
+
+### Get My Hangouts (shows hangouts I created)
+GET http://localhost:3000/hangouts/my-hangouts
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Get Hangouts by Specific User
+GET http://localhost:3000/hangouts/by-user/USER_ID_HERE

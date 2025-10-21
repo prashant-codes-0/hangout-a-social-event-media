@@ -198,4 +198,27 @@ export class HangoutsService {
     hangout.blasts += 1;
     return hangout.save();
   }
+
+  async getMyHangouts(userId: string) {
+    return this.hangoutModel
+      .find({ createdBy: userId })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  async getHangoutsByUser(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.hangoutModel
+      .find({ createdBy: userId })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email')
+      .sort({ createdAt: -1 })
+      .exec();
+  }
 }
