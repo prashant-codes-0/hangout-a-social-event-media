@@ -12,9 +12,12 @@ npm install
 npm run start:dev
 
 # The API will be available at http://localhost:3000
+# Swagger API documentation at http://localhost:3000/api
 ```
 
 ## 📚 API Documentation
+
+**Interactive Swagger UI:** Visit `http://localhost:3000/api` after starting the server for complete API documentation with request/response examples and the ability to test endpoints directly.
 
 ### Authentication
 
@@ -149,6 +152,8 @@ src/
 - ✅ User role management
 - ✅ Filtering and search
 - ✅ Input validation
+- ✅ **Swagger/OpenAPI documentation**
+- ✅ **Interactive API testing**
 
 ## 🔧 Environment Variables
 
@@ -167,9 +172,31 @@ MONGODB_URI=mongodb://localhost:27017/hangout
 
 ## 📝 User Roles
 
-- **User:** Basic user, can browse and join hangouts
-- **Verified:** Can create hangouts
-- **Sponsor:** Can create sponsored hangouts
+- **User:** Basic user, can browse and join hangouts (cannot create hangouts unless verified)
+- **Admin:** Full access, can create hangouts and manage users
+- **Sponsor:** Can create hangouts and sponsored hangouts
+
+## 🔧 User Management
+
+### Creating Hangouts
+Only **verified users**, **admins**, and **sponsors** can create hangouts.
+
+### Admin Functions
+Admins can:
+- View all users: `GET /auth/users`
+- Verify users and change roles: `PATCH /auth/verify`
+
+### Getting Started
+1. **Seed the database** (creates admin and sponsor users):
+   ```bash
+   npm run seed
+   ```
+
+2. **Default accounts created:**
+   - Admin: `admin@hangout.com` / `admin123`
+   - Sponsor: `sponsor@hangout.com` / `sponsor123`
+
+3. **Sign in as admin** to verify other users or test admin functions
 
 ## 🧩 Data Models
 

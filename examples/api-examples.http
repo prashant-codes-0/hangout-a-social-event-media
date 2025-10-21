@@ -58,3 +58,35 @@ Content-Type: application/json
 {
   "status": "approved"
 }
+
+### Sign In as Admin
+POST http://localhost:3000/auth/signin
+Content-Type: application/json
+
+{
+  "email": "admin@hangout.com",
+  "password": "admin123"
+}
+
+### Sign In as Sponsor
+POST http://localhost:3000/auth/signin
+Content-Type: application/json
+
+{
+  "email": "sponsor@hangout.com",
+  "password": "sponsor123"
+}
+
+### Get All Users (admin only)
+GET http://localhost:3000/auth/users
+Authorization: Bearer ADMIN_JWT_TOKEN_HERE
+
+### Verify User (admin only)
+PATCH http://localhost:3000/auth/verify
+Authorization: Bearer ADMIN_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "userId": "USER_ID_HERE",
+  "role": "admin"
+}

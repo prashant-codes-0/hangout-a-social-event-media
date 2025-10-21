@@ -15,17 +15,18 @@ export class HangoutsService {
     private joinRequestModel: Model<JoinRequest>,
     @InjectModel(User.name)
     private userModel: Model<User>,
-  ) {}
+  ) { }
 
   async create(createHangoutDto: CreateHangoutDto, userId: string) {
     const user = await this.userModel.findById(userId);
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    
+
+    // Only verified users, admins, and sponsors can create hangouts
     if (!user.verified && user.role === UserRole.USER) {
-      throw new ForbiddenException('Only verified users can create hangouts');
+      throw new ForbiddenException('Only verified users, admins, and sponsors can create hangouts');
     }
 
     const hangout = new this.hangoutModel({
@@ -52,7 +53,7 @@ export class HangoutsService {
       const startDate = new Date(filters.date);
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 1);
-      
+
       query.time = {
         $gte: startDate,
         $lt: endDate,
@@ -126,11 +127,11 @@ export class HangoutsService {
 
   async requestToJoin(hangoutId: string, userId: string) {
     const hangout = await this.hangoutModel.findById(hangoutId);
-    
+
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
-    
+
     // Check if user already has a request
     const existingRequest = await this.joinRequestModel.findOne({
       hangoutId,
@@ -189,11 +190,11 @@ export class HangoutsService {
 
   async addBlast(hangoutId: string) {
     const hangout = await this.hangoutModel.findById(hangoutId);
-    
+
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
-    
+
     hangout.blasts += 1;
     return hangout.save();
   }

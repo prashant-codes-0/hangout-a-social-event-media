@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { User } from './schemas/user.schema';
+import { User, UserRole } from './schemas/user.schema';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
 
 @Injectable()
@@ -94,5 +94,22 @@ export class AuthService {
 
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id);
+  }
+
+  async verifyUser(userId: string, role: UserRole): Promise<User> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.verified = true;
+    user.role = role;
+    await user.save();
+
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return this.userModel.find({}, '-passwordHash').exec();
   }
 }

@@ -1,20 +1,65 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get, Patch } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
+import { VerifyUserDto } from './dto/verify-user.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { AdminGuard } from './guards/admin.guard';
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'User successfully registered',
+    type: AuthResponseDto
+  })
+  @ApiResponse({ status: 409, description: 'User with this email already exists' })
+  @ApiBody({ type: SignUpDto })
   async signUp(@Body() signUpDto: SignUpDto) {
     return this.authService.signUp(signUpDto);
   }
 
   @UseGuards(AuthGuard('local'))
   @Post('signin')
+  @ApiOperation({ summary: 'Sign in user' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User successfully signed in',
+    type: AuthResponseDto
+  })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiBody({ type: SignInDto })
   async signIn(@Request() req, @Body() signInDto: SignInDto) {
     return this.authService.signIn(signInDto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @Get('users')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all users (admin only)' })
+  @ApiResponse({ status: 200, description: 'List of all users' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async getAllUsers() {
+    return this.authService.getAllUsers();
+  }
+
+  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @Patch('verify')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Verify user and set role (admin only)' })
+  @ApiResponse({ status: 200, description: 'User successfully verified' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiBody({ type: VerifyUserDto })
+  async verifyUser(@Body() verifyUserDto: VerifyUserDto) {
+    return this.authService.verifyUser(verifyUserDto.userId, verifyUserDto.role);
   }
 }

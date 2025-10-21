@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 
 export enum UserRole {
   USER = 'user',
-  VERIFIED = 'verified',
+  ADMIN = 'admin',
   SPONSOR = 'sponsor',
 }
 
