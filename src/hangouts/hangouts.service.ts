@@ -272,6 +272,55 @@ export class HangoutsService {
       .exec();
   }
 
+  async leaveHangout(hangoutId: string, userId: string) {
+    const hangout = await this.hangoutModel.findById(hangoutId);
+
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+
+    // Check if user is actually in the hangout
+    const isAttendee = hangout.attendees.some(
+      attendeeId => attendeeId.toString() === userId
+    );
+
+    if (!isAttendee) {
+      throw new BadRequestException('You are not an attendee of this hangout');
+    }
+
+    // Remove user from attendees array
+    hangout.attendees = hangout.attendees.filter(
+      attendeeId => attendeeId.toString() !== userId
+    );
+
+    // Update any approved join request to "rejected" or remove it
+    await this.joinRequestModel.deleteMany({
+      hangoutId,
+      userId,
+    });
+
+    await hangout.save();
+
+    return {
+      message: 'Successfully left the hangout',
+      hangoutId,
+      hangoutTitle: hangout.title,
+      remainingAttendees: hangout.attendees.length,
+    };
+  }
+
+  async getJoinedHangouts(userId: string) {
+    return this.hangoutModel
+      .find({ 
+        attendees: userId,
+        createdBy: { $ne: userId } // Exclude hangouts created by the user
+      })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email')
+      .sort({ time: 1 }) // Sort by upcoming events first
+      .exec();
+  }
+
   async getStats() {
     const totalHangouts = await this.hangoutModel.countDocuments();
     const publicHangouts = await this.hangoutModel.countDocuments({ isPublic: true });

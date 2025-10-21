@@ -60,6 +60,10 @@ Authorization: Bearer YOUR_JWT_TOKEN_HERE
 POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/blast
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
+### Leave Hangout (removes from attendees and join requests)
+POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/leave
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
 ### Handle Join Request (organizer only)
 PATCH http://localhost:3000/hangouts/requests/REQUEST_ID_HERE
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
@@ -103,6 +107,10 @@ Content-Type: application/json
 
 ### Get My Hangouts (shows hangouts I created)
 GET http://localhost:3000/hangouts/my-hangouts
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Get Joined Hangouts (shows hangouts I joined but didn't create)
+GET http://localhost:3000/hangouts/joined-hangouts
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
 ### Get Hangouts by Specific User (admin only)

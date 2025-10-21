@@ -73,6 +73,20 @@ export class HangoutsController {
     return this.hangoutsService.getMyHangouts(req.user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('joined-hangouts')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get hangouts that the current user has joined (not created)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of hangouts the user has joined',
+    type: [HangoutResponseDto]
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getJoinedHangouts(@Request() req) {
+    return this.hangoutsService.getJoinedHangouts(req.user.id);
+  }
+
   @UseGuards(AuthGuard('jwt'), AdminGuard)
   @Get('by-user/:userId')
   @ApiBearerAuth('JWT-auth')
@@ -225,6 +239,33 @@ export class HangoutsController {
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   toggleBlast(@Param('id') id: string, @Request() req) {
     return this.hangoutsService.toggleBlast(id, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/leave')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Leave a hangout (removes from attendees and deletes join request)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully left the hangout',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          message: 'Successfully left the hangout',
+          hangoutId: '507f1f77bcf86cd799439011',
+          hangoutTitle: 'Networking Night',
+          remainingAttendees: 4
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'You are not an attendee of this hangout' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Hangout not found' })
+  leaveHangout(@Param('id') id: string, @Request() req) {
+    return this.hangoutsService.leaveHangout(id, req.user.id);
   }
 
 }
