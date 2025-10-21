@@ -1,98 +1,214 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🏖️ Hangout App
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A social event-based platform where users can discover, create, and join **hangouts** — real-world meetups organized around shared interests, venues, and sponsors.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## 🚀 Quick Start
 
 ```bash
-$ npm install
+# Install dependencies
+npm install
+
+# Start the development server
+npm run start:dev
+
+# The API will be available at http://localhost:3000
 ```
 
-## Compile and run the project
+## 📚 API Documentation
 
-```bash
-# development
-$ npm run start
+### Authentication
 
-# watch mode
-$ npm run start:dev
+#### Sign Up
+```http
+POST /auth/signup
+Content-Type: application/json
 
-# production mode
-$ npm run start:prod
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
 ```
 
-## Run tests
+#### Sign In
+```http
+POST /auth/signin
+Content-Type: application/json
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
 ```
 
-## Deployment
+### Hangouts
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+#### Get All Hangouts
+```http
+GET /hangouts?purpose=networking&place=hotel&date=2024-12-25
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+#### Get Hangout Details
+```http
+GET /hangouts/:id
+```
 
-## Resources
+#### Create Hangout (Verified Users Only)
+```http
+POST /hangouts
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
 
-Check out a few resources that may come in handy when working with NestJS:
+{
+  "title": "Networking Night",
+  "purpose": "Professional networking",
+  "place": "Downtown Hotel",
+  "time": "2024-12-25T19:00:00Z",
+  "capacity": 20,
+  "isPublic": true
+}
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+#### Update Hangout
+```http
+PATCH /hangouts/:id
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
 
-## Support
+{
+  "title": "Updated Title",
+  "capacity": 25
+}
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+#### Delete Hangout
+```http
+DELETE /hangouts/:id
+Authorization: Bearer <jwt_token>
+```
 
-## Stay in touch
+#### Request to Join
+```http
+POST /hangouts/:id/join
+Authorization: Bearer <jwt_token>
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+#### Handle Join Request (Organizers Only)
+```http
+PATCH /hangouts/requests/:requestId
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
 
-## License
+{
+  "status": "approved"
+}
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+#### Add Blast (Like)
+```http
+POST /hangouts/:id/blast
+```
+
+## 🏗️ Project Structure
+
+```
+src/
+├── auth/                    # Authentication module
+│   ├── dto/                # Auth DTOs
+│   ├── schemas/            # User schema
+│   ├── auth.controller.ts  # Auth endpoints
+│   ├── auth.service.ts     # Auth business logic
+│   ├── auth.module.ts      # Auth module
+│   ├── jwt.strategy.ts     # JWT strategy
+│   └── local.strategy.ts   # Local strategy
+├── hangouts/               # Hangouts module
+│   ├── dto/               # Hangout DTOs
+│   ├── schemas/           # Hangout & JoinRequest schemas
+│   ├── hangouts.controller.ts # Hangout endpoints
+│   ├── hangouts.service.ts    # Hangout business logic
+│   └── hangouts.module.ts     # Hangout module
+├── app.module.ts          # Main application module
+└── main.ts               # Application entry point
+```
+
+## 🛠️ Tech Stack
+
+- **Framework:** NestJS
+- **Database:** MongoDB (Mongoose)
+- **Authentication:** JWT + Passport
+- **Validation:** class-validator
+- **Language:** TypeScript
+
+## 🎯 Features
+
+- ✅ User authentication (signup/signin)
+- ✅ JWT-based authorization
+- ✅ Hangout CRUD operations
+- ✅ Join request system
+- ✅ Blast (like) system
+- ✅ User role management
+- ✅ Filtering and search
+- ✅ Input validation
+
+## 🔧 Environment Variables
+
+Create a `.env` file:
+
+```env
+JWT_SECRET=your-super-secret-jwt-key
+PORT=3000
+MONGODB_URI=mongodb://localhost:27017/hangout
+```
+
+## 📋 Prerequisites
+
+- Node.js (v16 or higher)
+- MongoDB (running locally or MongoDB Atlas)
+
+## 📝 User Roles
+
+- **User:** Basic user, can browse and join hangouts
+- **Verified:** Can create hangouts
+- **Sponsor:** Can create sponsored hangouts
+
+## 🧩 Data Models
+
+### User
+```typescript
+{
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'verified' | 'sponsor';
+  verified: boolean;
+  createdAt: Date;
+}
+```
+
+### Hangout
+```typescript
+{
+  id: string;
+  title: string;
+  purpose: string;
+  place: string;
+  time: Date;
+  createdBy: string;
+  sponsored: boolean;
+  attendees: string[];
+  blasts: number;
+  capacity: number;
+  isPublic: boolean;
+}
+```
+
+### Join Request
+```typescript
+{
+  id: string;
+  hangoutId: string;
+  userId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: Date;
+}
+```

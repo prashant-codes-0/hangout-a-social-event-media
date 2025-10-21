@@ -1,0 +1,60 @@
+# Hangout App API Examples
+# Use with REST Client extension in VS Code or similar tools
+
+### Sign Up
+POST http://localhost:3000/auth/signup
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
+
+### Sign In
+POST http://localhost:3000/auth/signin
+Content-Type: application/json
+
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+
+### Get All Hangouts
+GET http://localhost:3000/hangouts
+
+### Get Hangouts with Filters
+GET http://localhost:3000/hangouts?purpose=networking&place=hotel
+
+### Create Hangout (requires JWT token)
+POST http://localhost:3000/hangouts
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "title": "Networking Night",
+  "purpose": "Professional networking",
+  "place": "Downtown Hotel",
+  "time": "2024-12-25T19:00:00Z",
+  "capacity": 20,
+  "isPublic": true
+}
+
+### Get Hangout Details
+GET http://localhost:3000/hangouts/HANGOUT_ID_HERE
+
+### Request to Join Hangout
+POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/join
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Add Blast to Hangout
+POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/blast
+
+### Handle Join Request (organizer only)
+PATCH http://localhost:3000/hangouts/requests/REQUEST_ID_HERE
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "status": "approved"
+}
