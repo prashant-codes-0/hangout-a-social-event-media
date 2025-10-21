@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { HangoutsModule } from './hangouts/hangouts.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { HangoutsModule } from './hangouts/hangouts.module';
     }),
     AuthModule,
     HangoutsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

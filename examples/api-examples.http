@@ -120,3 +120,33 @@ Authorization: Bearer ADMIN_JWT_TOKEN_HERE
 ### Get Hangout Statistics (admin only)
 GET http://localhost:3000/hangouts/admin/stats
 Authorization: Bearer ADMIN_JWT_TOKEN_HERE
+
+### === CHAT ENDPOINTS ===
+
+### Send Message to Hangout Chat
+POST http://localhost:3000/chat/message
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "hangoutId": "HANGOUT_ID_HERE",
+  "content": "Hey everyone! Looking forward to this hangout!",
+  "messageType": "text"
+}
+
+### Get Messages for Hangout
+GET http://localhost:3000/chat/hangout/HANGOUT_ID_HERE/messages?limit=20&skip=0
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Edit Message
+PATCH http://localhost:3000/chat/message/MESSAGE_ID_HERE
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "content": "Updated message content"
+}
+
+### Delete Message
+DELETE http://localhost:3000/chat/message/MESSAGE_ID_HERE
+Authorization: Bearer YOUR_JWT_TOKEN_HERE

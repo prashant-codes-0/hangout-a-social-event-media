@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hangout Chat Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Hangout Chat Test</h1>
+    
+    <div>
+        <label>JWT Token:</label>
+        <input type="text" id="token" placeholder="Paste your JWT token here" style="width: 400px;">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    
+    <div>
+        <label>Hangout ID:</label>
+        <input type="text" id="hangoutId" placeholder="Enter hangout ID">
+        <button onclick="joinHangout()">Join Hangout</button>
+        <button onclick="leaveHangout()">Leave Hangout</button>
+    </div>
+    
+    <div>
+        <label>Message:</label>
+        <input type="text" id="messageInput" placeholder="Type your message">
+        <button onclick="sendMessage()">Send Message</button>
+    </div>
+    
+    <div>
+        <h3>Messages:</h3>
+        <div id="messages" style="border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px;"></div>
+    </div>
+    
+    <div>
+        <h3>Events:</h3>
+        <div id="events" style="border: 1px solid #ccc; height: 200px; overflow-y: scroll; padding: 10px; background: #f5f5f5;"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter JWT token');
+                return;
+            }
+            
+            socket = io('http://localhost:3000/chat', {
+                auth: { token: token }
+            });
+            
+            socket.on('connect', () => {
+                addEvent('Connected to chat server');
+            });
+            
+            socket.on('disconnect', () => {
+                addEvent('Disconnected from chat server');
+            });
+            
+            socket.on('joinedHangout', (data) => {
+                addEvent(`Joined hangout: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('leftHangout', (data) => {
+                addEvent(`Left hangout: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('newMessage', (message) => {
+                addMessage(message);
+            });
+            
+            socket.on('messageEdited', (message) => {
+                addEvent(`Message edited: ${message.content}`);
+            });
+            
+            socket.on('messageDeleted', (data) => {
+                addEvent(`Message deleted: ${data.messageId}`);
+            });
+            
+            socket.on('userJoined', (data) => {
+                addEvent(`User joined: ${data.message}`);
+            });
+            
+            socket.on('userLeft', (data) => {
+                addEvent(`User left: ${data.message}`);
+            });
+            
+            socket.on('userTyping', (data) => {
+                addEvent(`${data.user.email} is ${data.isTyping ? 'typing...' : 'stopped typing'}`);
+            });
+            
+            socket.on('error', (error) => {
+                addEvent(`Error: ${error.message}`, 'error');
+            });
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+        
+        function joinHangout() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            if (!hangoutId || !socket) {
+                alert('Please enter hangout ID and connect first');
+                return;
+            }
+            
+            socket.emit('joinHangout', { hangoutId });
+        }
+        
+        function leaveHangout() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            if (!hangoutId || !socket) {
+                alert('Please enter hangout ID and connect first');
+                return;
+            }
+            
+            socket.emit('leaveHangout', { hangoutId });
+        }
+        
+        function sendMessage() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            const content = document.getElementById('messageInput').value;
+            
+            if (!hangoutId || !content || !socket) {
+                alert('Please fill all fields and connect first');
+                return;
+            }
+            
+            socket.emit('sendMessage', {
+                hangoutId,
+                content,
+                messageType: 'text'
+            });
+            
+            document.getElementById('messageInput').value = '';
+        }
+        
+        function addMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `
+                <strong>${message.userId.name}:</strong> ${message.content}
+                <small style="color: #666;">(${new Date(message.createdAt).toLocaleTimeString()})</small>
+            `;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function addEvent(message, type = 'info') {
+            const eventsDiv = document.getElementById('events');
+            const eventElement = document.createElement('div');
+            eventElement.style.color = type === 'error' ? 'red' : 'blue';
+            eventElement.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            eventsDiv.appendChild(eventElement);
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
