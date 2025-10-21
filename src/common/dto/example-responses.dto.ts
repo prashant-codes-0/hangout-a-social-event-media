@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ApiResponseDto } from './api-response.dto';
 
-export class SuccessResponseExample extends ApiResponseDto {
+export class SuccessResponseExample {
   @ApiProperty({ example: true })
   success: boolean;
 
@@ -11,8 +10,8 @@ export class SuccessResponseExample extends ApiResponseDto {
   @ApiProperty({ example: 'Operation completed successfully' })
   message: string;
 
-  @ApiProperty({ 
-    example: { 
+  @ApiProperty({
+    example: {
       id: '507f1f77bcf86cd799439011',
       name: 'John Doe',
       email: 'john@example.com'
@@ -24,7 +23,7 @@ export class SuccessResponseExample extends ApiResponseDto {
   timestamp: string;
 }
 
-export class ErrorResponseExample extends ApiResponseDto {
+export class ErrorResponseExample {
   @ApiProperty({ example: false })
   success: boolean;
 
