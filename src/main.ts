@@ -67,7 +67,7 @@ async function bootstrap() {
   });
   
   await app.listen(process.env.PORT ?? 3000);
-  console.log(`🏖️ Hangout App is running on: http://localhost:${process.env.PORT ?? 3000}`);
-  console.log(`📚 Swagger UI is available on: http://localhost:${process.env.PORT ?? 3000}/api`);
+  console.log(`Hangout App is running on: http://localhost:${process.env.PORT ?? 3000}`);
+  console.log(`Swagger UI is available on: http://localhost:${process.env.PORT ?? 3000}/api`);
 }
 bootstrap();
