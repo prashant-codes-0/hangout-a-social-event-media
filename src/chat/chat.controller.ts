@@ -26,7 +26,7 @@ import { SendMessageDto, EditMessageDto, MessageResponseDto } from './dto/chat.d
 @ApiTags('Chat')
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('message')

@@ -70,9 +70,18 @@
             socket.on('newMessage', (message) => {
                 addMessage(message);
             });
+
+            socket.on('messageSent', (message) => {
+                addMessage(message);
+                addEvent('Your message was sent successfully');
+            });
             
             socket.on('messageEdited', (message) => {
                 addEvent(`Message edited: ${message.content}`);
+            });
+
+            socket.on('messageEditConfirmed', (message) => {
+                addEvent('Your message edit was confirmed');
             });
             
             socket.on('messageDeleted', (data) => {
