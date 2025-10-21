@@ -11,14 +11,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBody, 
-  ApiBearerAuth, 
-  ApiParam, 
-  ApiQuery 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery
 } from '@nestjs/swagger';
 import { HangoutsService } from './hangouts.service';
 import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
@@ -30,7 +30,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 @ApiTags('Hangouts')
 @Controller('hangouts')
 export class HangoutsController {
-  constructor(private readonly hangoutsService: HangoutsService) {}
+  constructor(private readonly hangoutsService: HangoutsService) { }
 
   @UseGuards(AuthGuard('jwt'))
   @Post()
@@ -45,21 +45,26 @@ export class HangoutsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all public hangouts with optional filters' })
+  @ApiOperation({ summary: 'Get all public hangouts with optional filters (shows blast status if authenticated)' })
   @ApiQuery({ name: 'purpose', required: false, description: 'Filter by purpose' })
   @ApiQuery({ name: 'place', required: false, description: 'Filter by place' })
   @ApiQuery({ name: 'date', required: false, description: 'Filter by date (YYYY-MM-DD)' })
-  @ApiResponse({ status: 200, description: 'List of hangouts', type: [HangoutResponseDto] })
-  findAll(@Query() filters: { purpose?: string; place?: string; date?: string }) {
-    return this.hangoutsService.findAll(filters);
+  @ApiResponse({
+    status: 200,
+    description: 'List of hangouts with blast status',
+    type: [HangoutResponseDto]
+  })
+  findAll(@Query() filters: { purpose?: string; place?: string; date?: string }, @Request() req?) {
+    const userId = req?.user?.id;
+    return this.hangoutsService.findAll(filters, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('my-hangouts')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get hangouts created by the current user' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'List of hangouts created by current user',
     type: [HangoutResponseDto]
   })
@@ -73,8 +78,8 @@ export class HangoutsController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get hangouts created by a specific user (admin only)' })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'List of hangouts created by the specified user',
     type: [HangoutResponseDto]
   })
@@ -97,12 +102,30 @@ export class HangoutsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get hangout details by ID' })
+  @ApiOperation({ summary: 'Get hangout details by ID (shows if you have blasted it)' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
-  @ApiResponse({ status: 200, description: 'Hangout details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Hangout details with blast status',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          _id: '507f1f77bcf86cd799439011',
+          title: 'Networking Night',
+          blasts: 5,
+          blastedBy: [
+            { _id: 'user1', name: 'John Doe', email: 'john@example.com' }
+          ],
+          userHasBlasted: true
+        }
+      }
+    }
+  })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
-  findOne(@Param('id') id: string) {
-    return this.hangoutsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req?) {
+    const userId = req?.user?.id;
+    return this.hangoutsService.findOne(id, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -178,13 +201,30 @@ export class HangoutsController {
     return this.hangoutsService.handleJoinRequest(requestId, status, req.user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Post(':id/blast')
-  @ApiOperation({ summary: 'Add a blast (like) to a hangout' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle blast (upvote/downvote) for a hangout - like Reddit upvoting' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
-  @ApiResponse({ status: 200, description: 'Blast successfully added' })
+  @ApiResponse({
+    status: 200,
+    description: 'Blast toggled successfully',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          hangoutId: '507f1f77bcf86cd799439011',
+          blasts: 5,
+          userBlasted: true,
+          action: 'added'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
-  addBlast(@Param('id') id: string) {
-    return this.hangoutsService.addBlast(id);
+  toggleBlast(@Param('id') id: string, @Request() req) {
+    return this.hangoutsService.toggleBlast(id, req.user.id);
   }
 
 }

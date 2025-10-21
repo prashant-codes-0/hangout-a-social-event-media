@@ -56,8 +56,9 @@ GET http://localhost:3000/hangouts/HANGOUT_ID_HERE
 POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/join
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
-### Add Blast to Hangout
+### Toggle Blast (Upvote/Downvote) - Reddit Style
 POST http://localhost:3000/hangouts/HANGOUT_ID_HERE/blast
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
 ### Handle Join Request (organizer only)
 PATCH http://localhost:3000/hangouts/requests/REQUEST_ID_HERE

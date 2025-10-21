@@ -27,6 +27,9 @@ export class Hangout extends Document {
   @Prop({ default: 0 })
   blasts: number;
 
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  blastedBy: Types.ObjectId[];
+
   @Prop({ default: 10 })
   capacity: number;
 

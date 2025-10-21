@@ -38,7 +38,7 @@ export class HangoutsService {
     return hangout.save();
   }
 
-  async findAll(filters?: { purpose?: string; place?: string; date?: string }) {
+  async findAll(filters?: { purpose?: string; place?: string; date?: string }, userId?: string) {
     const query: any = { isPublic: true };
 
     if (filters?.purpose) {
@@ -60,17 +60,35 @@ export class HangoutsService {
       };
     }
 
-    return this.hangoutModel
+    const hangouts = await this.hangoutModel
       .find(query)
       .populate('createdBy', 'name email')
+      .populate('blastedBy', 'name email')
       .exec();
+
+    // Add userHasBlasted field for authenticated users
+    if (userId) {
+      return hangouts.map(hangout => {
+        const hangoutObj = hangout.toObject();
+        const userHasBlasted = hangout.blastedBy.some(
+          (blastedUser: any) => blastedUser._id.toString() === userId
+        );
+        return {
+          ...hangoutObj,
+          userHasBlasted,
+        };
+      });
+    }
+
+    return hangouts;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const hangout = await this.hangoutModel
       .findById(id)
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
+      .populate('blastedBy', 'name email')
       .exec();
 
     if (!hangout) {
@@ -83,9 +101,20 @@ export class HangoutsService {
       .populate('userId', 'name email')
       .exec();
 
+    const hangoutObj = hangout.toObject();
+    
+    // Check if current user has blasted this hangout
+    let userHasBlasted = false;
+    if (userId) {
+      userHasBlasted = hangout.blastedBy.some(
+        (blastedUser: any) => blastedUser._id.toString() === userId
+      );
+    }
+
     return {
-      ...hangout.toObject(),
+      ...hangoutObj,
       joinRequests,
+      userHasBlasted,
     };
   }
 
@@ -188,15 +217,36 @@ export class HangoutsService {
     return joinRequest;
   }
 
-  async addBlast(hangoutId: string) {
+  async toggleBlast(hangoutId: string, userId: string) {
     const hangout = await this.hangoutModel.findById(hangoutId);
 
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
 
-    hangout.blasts += 1;
-    return hangout.save();
+    const userObjectId = userId as any;
+    const hasBlasted = hangout.blastedBy.includes(userObjectId);
+
+    if (hasBlasted) {
+      // Remove blast (downvote)
+      hangout.blastedBy = hangout.blastedBy.filter(
+        id => id.toString() !== userId
+      );
+      hangout.blasts = Math.max(0, hangout.blasts - 1);
+    } else {
+      // Add blast (upvote)
+      hangout.blastedBy.push(userObjectId);
+      hangout.blasts += 1;
+    }
+
+    await hangout.save();
+
+    return {
+      hangoutId,
+      blasts: hangout.blasts,
+      userBlasted: !hasBlasted,
+      action: hasBlasted ? 'removed' : 'added',
+    };
   }
 
   async getMyHangouts(userId: string) {
