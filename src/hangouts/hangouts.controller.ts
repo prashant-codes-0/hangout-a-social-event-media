@@ -25,6 +25,7 @@ import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @ApiTags('Hangouts')
 @Controller('hangouts')
@@ -67,17 +68,32 @@ export class HangoutsController {
     return this.hangoutsService.getMyHangouts(req.user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'), AdminGuard)
   @Get('by-user/:userId')
-  @ApiOperation({ summary: 'Get hangouts created by a specific user' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get hangouts created by a specific user (admin only)' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiResponse({ 
     status: 200, 
     description: 'List of hangouts created by the specified user',
     type: [HangoutResponseDto]
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
   @ApiResponse({ status: 404, description: 'User not found' })
   getHangoutsByUser(@Param('userId') userId: string) {
     return this.hangoutsService.getHangoutsByUser(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @Get('admin/stats')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get hangout statistics (admin only)' })
+  @ApiResponse({ status: 200, description: 'Hangout statistics' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async getStats() {
+    return this.hangoutsService.getStats();
   }
 
   @Get(':id')

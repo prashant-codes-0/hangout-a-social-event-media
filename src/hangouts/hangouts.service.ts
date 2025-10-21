@@ -221,4 +221,28 @@ export class HangoutsService {
       .sort({ createdAt: -1 })
       .exec();
   }
+
+  async getStats() {
+    const totalHangouts = await this.hangoutModel.countDocuments();
+    const publicHangouts = await this.hangoutModel.countDocuments({ isPublic: true });
+    const privateHangouts = await this.hangoutModel.countDocuments({ isPublic: false });
+    const sponsoredHangouts = await this.hangoutModel.countDocuments({ sponsored: true });
+    const totalUsers = await this.userModel.countDocuments();
+    const totalJoinRequests = await this.joinRequestModel.countDocuments();
+
+    return {
+      hangouts: {
+        total: totalHangouts,
+        public: publicHangouts,
+        private: privateHangouts,
+        sponsored: sponsoredHangouts,
+      },
+      users: {
+        total: totalUsers,
+      },
+      joinRequests: {
+        total: totalJoinRequests,
+      },
+    };
+  }
 }

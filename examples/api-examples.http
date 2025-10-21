@@ -104,5 +104,10 @@ Content-Type: application/json
 GET http://localhost:3000/hangouts/my-hangouts
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
-### Get Hangouts by Specific User
+### Get Hangouts by Specific User (admin only)
 GET http://localhost:3000/hangouts/by-user/USER_ID_HERE
+Authorization: Bearer ADMIN_JWT_TOKEN_HERE
+
+### Get Hangout Statistics (admin only)
+GET http://localhost:3000/hangouts/admin/stats
+Authorization: Bearer ADMIN_JWT_TOKEN_HERE
