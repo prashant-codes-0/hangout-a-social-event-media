@@ -76,7 +76,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const hasAccess = await this.chatService.checkUserAccess(hangoutId, client.userId!);
 
         if (!hasAccess) {
-            client.emit('error', { message: 'You do not have access to this hangout chat' });
+            client.emit('error', { message: 'You do not have access to this hangout chat. You must be an attendee or creator of this hangout.' });
             return;
         }
 

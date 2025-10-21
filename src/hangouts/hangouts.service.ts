@@ -33,6 +33,7 @@ export class HangoutsService {
       ...createHangoutDto,
       time: new Date(createHangoutDto.time),
       createdBy: userId,
+      attendees: [userId], // Creator automatically joins their own hangout
     });
 
     return hangout.save();

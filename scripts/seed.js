@@ -53,7 +53,7 @@ async function seed() {
         place: 'Downtown Hotel',
         time: new Date('2024-12-25T19:00:00Z'),
         sponsored: false,
-        attendees: [],
+        attendees: [adminUser._id], // Creator automatically joins
         blasts: 2,
         blastedBy: [],
         capacity: 20,
@@ -69,7 +69,7 @@ async function seed() {
         time: new Date('2024-12-26T18:00:00Z'),
         sponsored: true,
         sponsorId: sponsorUser.insertedId,
-        attendees: [],
+        attendees: [sponsorUser.insertedId], // Creator automatically joins
         blasts: 1,
         blastedBy: [],
         capacity: 15,
@@ -84,7 +84,7 @@ async function seed() {
         place: 'Local Coffee Shop',
         time: new Date('2024-12-27T10:00:00Z'),
         sponsored: false,
-        attendees: [],
+        attendees: [adminUser._id], // Creator automatically joins
         blasts: 0,
         blastedBy: [],
         capacity: 8,
@@ -99,7 +99,7 @@ async function seed() {
         place: 'Office Conference Room',
         time: new Date('2024-12-28T14:00:00Z'),
         sponsored: false,
-        attendees: [],
+        attendees: [adminUser._id], // Creator automatically joins
         blasts: 0,
         blastedBy: [],
         capacity: 5,
