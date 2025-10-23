@@ -53,22 +53,8 @@ export class ChatService {
   }
 
   async getMessages(hangoutId: string, userId: string, limit = 50, skip = 0, restrictHistory = false) {
-    // Check if hangout exists
-    const hangout = await this.hangoutModel.findById(hangoutId);
-    if (!hangout) {
-      throw new NotFoundException('Hangout not found');
-    }
-
-    // Check if user is an attendee or creator
-    const isAttendee = hangout.attendees.some(
-      attendeeId => attendeeId.toString() === userId
-    );
-    const isCreator = hangout.createdBy.toString() === userId;
-
-    if (!isAttendee && !isCreator) {
-      throw new ForbiddenException('You must be an attendee to view messages');
-    }
-
+    // Access validation is handled by HangoutAccessGuard
+    
     // Build query
     const query: any = { hangoutId };
     
@@ -89,20 +75,33 @@ export class ChatService {
   }
 
   async getRecentMessages(hangoutId: string, userId: string, hours = 24) {
+    // Access validation is handled by HangoutAccessGuard
+    
     const fromTime = new Date();
     fromTime.setHours(fromTime.getHours() - hours);
     
-    return this.getMessages(hangoutId, userId, 50, 0, false);
+    const query = { 
+      hangoutId,
+      createdAt: { $gte: fromTime }
+    };
+
+    return this.messageModel
+      .find(query)
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .exec();
   }
 
-  async editMessage(messageId: string, editMessageDto: EditMessageDto, userId: string) {
+  async editMessage(messageId: string, editMessageDto: EditMessageDto, userId: string, isAdmin: boolean = false) {
     const message = await this.messageModel.findById(messageId);
     
     if (!message) {
       throw new NotFoundException('Message not found');
     }
 
-    if (message.userId.toString() !== userId) {
+    // Admins can edit any message, regular users can only edit their own
+    if (!isAdmin && message.userId.toString() !== userId) {
       throw new ForbiddenException('You can only edit your own messages');
     }
 
@@ -116,14 +115,15 @@ export class ChatService {
     return message;
   }
 
-  async deleteMessage(messageId: string, userId: string) {
+  async deleteMessage(messageId: string, userId: string, isAdmin: boolean = false) {
     const message = await this.messageModel.findById(messageId);
     
     if (!message) {
       throw new NotFoundException('Message not found');
     }
 
-    if (message.userId.toString() !== userId) {
+    // Admins can delete any message, regular users can only delete their own
+    if (!isAdmin && message.userId.toString() !== userId) {
       throw new ForbiddenException('You can only delete your own messages');
     }
 

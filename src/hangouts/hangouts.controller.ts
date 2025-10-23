@@ -24,15 +24,19 @@ import { HangoutsService } from './hangouts.service';
 import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
-import { ApiResponseDto } from '../common/dto/api-response.dto';
-import { AdminGuard } from '../auth/guards/admin.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
+import { VerifiedUserGuard } from '../common/guards/verified-user.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { AdminOrSponsorGuard } from '../common/guards/admin-or-sponsor.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../auth/schemas/user.schema';
 
 @ApiTags('Hangouts')
 @Controller('hangouts')
 export class HangoutsController {
   constructor(private readonly hangoutsService: HangoutsService) { }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'),VerifiedUserGuard)
   @Post()
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Create a new hangout (verified users, admins, and sponsors only)' })
@@ -87,7 +91,8 @@ export class HangoutsController {
     return this.hangoutsService.getJoinedHangouts(req.user.id);
   }
 
-  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Get('by-user/:userId')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get hangouts created by a specific user (admin only)' })
@@ -113,6 +118,24 @@ export class HangoutsController {
   @ApiResponse({ status: 403, description: 'Admin access required' })
   async getStats() {
     return this.hangoutsService.getStats();
+  }
+
+  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @Get('admin/all')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all hangouts including private ones (admin only)' })
+  @ApiQuery({ name: 'purpose', required: false, description: 'Filter by purpose' })
+  @ApiQuery({ name: 'place', required: false, description: 'Filter by place' })
+  @ApiQuery({ name: 'date', required: false, description: 'Filter by date (YYYY-MM-DD)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all hangouts (public and private)',
+    type: [HangoutResponseDto]
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Admin access required' })
+  async getAllHangoutsAdmin(@Query() filters: { purpose?: string; place?: string; date?: string }, @Request() req) {
+    return this.hangoutsService.findAllAdmin(filters, req.user.id);
   }
 
   @Get(':id')
@@ -145,11 +168,11 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Patch(':id')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update hangout (organizer only)' })
+  @ApiOperation({ summary: 'Update hangout (organizer or admin)' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({ status: 200, description: 'Hangout successfully updated' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only update your own hangouts' })
+  @ApiResponse({ status: 403, description: 'You can only update your own hangouts (unless you are an admin)' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   @ApiBody({ type: UpdateHangoutDto })
   update(
@@ -157,20 +180,22 @@ export class HangoutsController {
     @Body() updateHangoutDto: UpdateHangoutDto,
     @Request() req,
   ) {
-    return this.hangoutsService.update(id, updateHangoutDto, req.user.id);
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.hangoutsService.update(id, updateHangoutDto, req.user.id, isAdmin);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Delete hangout (organizer only)' })
+  @ApiOperation({ summary: 'Delete hangout (organizer or admin)' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({ status: 200, description: 'Hangout successfully deleted' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only delete your own hangouts' })
+  @ApiResponse({ status: 403, description: 'You can only delete your own hangouts (unless you are an admin)' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   remove(@Param('id') id: string, @Request() req) {
-    return this.hangoutsService.remove(id, req.user.id);
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.hangoutsService.remove(id, req.user.id, isAdmin);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -189,7 +214,7 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Patch('requests/:requestId')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Handle join request (organizer only)' })
+  @ApiOperation({ summary: 'Handle join request (organizer or admin)' })
   @ApiParam({ name: 'requestId', description: 'Join request ID' })
   @ApiBody({
     schema: {
@@ -205,14 +230,15 @@ export class HangoutsController {
   })
   @ApiResponse({ status: 200, description: 'Join request successfully handled' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only handle requests for your own hangouts' })
+  @ApiResponse({ status: 403, description: 'You can only handle requests for your own hangouts (unless you are an admin)' })
   @ApiResponse({ status: 404, description: 'Join request not found' })
   handleJoinRequest(
     @Param('requestId') requestId: string,
     @Body('status') status: JoinRequestStatus,
     @Request() req,
   ) {
-    return this.hangoutsService.handleJoinRequest(requestId, status, req.user.id);
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.hangoutsService.handleJoinRequest(requestId, status, req.user.id, isAdmin);
   }
 
   @UseGuards(AuthGuard('jwt'))

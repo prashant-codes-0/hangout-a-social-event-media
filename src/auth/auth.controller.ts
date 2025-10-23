@@ -6,7 +6,7 @@ import { SignUpDto, SignInDto } from './dto/auth.dto';
 import { VerifyUserDto } from './dto/verify-user.dto';
 import { VerifyOnlyDto } from './dto/verify-only.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
-import { AdminGuard } from './guards/admin.guard';
+import { AdminGuard } from '../common/guards/admin.guard';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
 
 @ApiTags('Authentication')

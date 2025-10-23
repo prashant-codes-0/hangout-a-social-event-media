@@ -18,17 +18,7 @@ export class HangoutsService {
   ) { }
 
   async create(createHangoutDto: CreateHangoutDto, userId: string) {
-    const user = await this.userModel.findById(userId);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Only verified users, admins, and sponsors can create hangouts
-    if (!user.verified && user.role === UserRole.USER) {
-      throw new ForbiddenException('Only verified users, admins, and sponsors can create hangouts');
-    }
-
+    // Role validation is now handled by VerifiedUserGuard at the controller level
     const hangout = new this.hangoutModel({
       ...createHangoutDto,
       time: new Date(createHangoutDto.time),
@@ -41,6 +31,51 @@ export class HangoutsService {
 
   async findAll(filters?: { purpose?: string; place?: string; date?: string }, userId?: string) {
     const query: any = { isPublic: true };
+
+    if (filters?.purpose) {
+      query.purpose = { $regex: filters.purpose, $options: 'i' };
+    }
+
+    if (filters?.place) {
+      query.place = { $regex: filters.place, $options: 'i' };
+    }
+
+    if (filters?.date) {
+      const startDate = new Date(filters.date);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+
+      query.time = {
+        $gte: startDate,
+        $lt: endDate,
+      };
+    }
+
+    const hangouts = await this.hangoutModel
+      .find(query)
+      .populate('createdBy', 'name email')
+      .populate('blastedBy', 'name email')
+      .exec();
+
+    // Add userHasBlasted field for authenticated users
+    if (userId) {
+      return hangouts.map(hangout => {
+        const hangoutObj = hangout.toObject();
+        const userHasBlasted = hangout.blastedBy.some(
+          (blastedUser: any) => blastedUser._id.toString() === userId
+        );
+        return {
+          ...hangoutObj,
+          userHasBlasted,
+        };
+      });
+    }
+
+    return hangouts;
+  }
+
+  async findAllAdmin(filters?: { purpose?: string; place?: string; date?: string }, userId?: string) {
+    const query: any = {}; // No isPublic filter - admins can see all hangouts
 
     if (filters?.purpose) {
       query.purpose = { $regex: filters.purpose, $options: 'i' };
@@ -103,7 +138,7 @@ export class HangoutsService {
       .exec();
 
     const hangoutObj = hangout.toObject();
-    
+
     // Check if current user has blasted this hangout
     let userHasBlasted = false;
     if (userId) {
@@ -119,14 +154,15 @@ export class HangoutsService {
     };
   }
 
-  async update(id: string, updateHangoutDto: UpdateHangoutDto, userId: string) {
+  async update(id: string, updateHangoutDto: UpdateHangoutDto, userId: string, isAdmin: boolean = false) {
     const hangout = await this.hangoutModel.findById(id);
 
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
 
-    if (hangout.createdBy.toString() !== userId) {
+    // Admins can update any hangout, regular users can only update their own
+    if (!isAdmin && hangout.createdBy.toString() !== userId) {
       throw new ForbiddenException('You can only update your own hangouts');
     }
 
@@ -139,14 +175,15 @@ export class HangoutsService {
     return this.findOne(id);
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, isAdmin: boolean = false) {
     const hangout = await this.hangoutModel.findById(id);
 
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
 
-    if (hangout.createdBy.toString() !== userId) {
+    // Admins can delete any hangout, regular users can only delete their own
+    if (!isAdmin && hangout.createdBy.toString() !== userId) {
       throw new ForbiddenException('You can only delete your own hangouts');
     }
 
@@ -185,7 +222,7 @@ export class HangoutsService {
     return joinRequest.save();
   }
 
-  async handleJoinRequest(requestId: string, status: JoinRequestStatus, userId: string) {
+  async handleJoinRequest(requestId: string, status: JoinRequestStatus, userId: string, isAdmin: boolean = false) {
     const joinRequest = await this.joinRequestModel
       .findById(requestId)
       .populate('hangoutId')
@@ -200,7 +237,8 @@ export class HangoutsService {
       throw new NotFoundException('Hangout not found');
     }
 
-    if (hangout.createdBy.toString() !== userId) {
+    // Admins can handle any join request, regular users can only handle requests for their own hangouts
+    if (!isAdmin && hangout.createdBy.toString() !== userId) {
       throw new ForbiddenException('You can only handle requests for your own hangouts');
     }
 
@@ -312,7 +350,7 @@ export class HangoutsService {
 
   async getJoinedHangouts(userId: string) {
     return this.hangoutModel
-      .find({ 
+      .find({
         attendees: userId,
         createdBy: { $ne: userId } // Exclude hangouts created by the user
       })

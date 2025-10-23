@@ -28,6 +28,15 @@
         <input type="text" id="messageInput" placeholder="Type your message">
         <button onclick="sendMessage()">Send Message</button>
     </div>
+    
+    <div>
+        <h3>Load Messages:</h3>
+        <button onclick="loadAllMessages()">Load All Messages</button>
+        <button onclick="loadRecentMessages()">Load Recent Messages (24h)</button>
+        <button onclick="loadRestrictedHistory()">Load Restricted History</button>
+        <button onclick="loadCustomRecentMessages()">Load Last 6 Hours</button>
+        <button onclick="clearMessages()">Clear Messages</button>
+    </div>
 
     <div>
         <h3>Messages:</h3>
@@ -180,6 +189,144 @@
             eventElement.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
             eventsDiv.appendChild(eventElement);
             eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        }
+        
+        // Message loading functions
+        async function loadAllMessages() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            const token = document.getElementById('token').value;
+            
+            if (!hangoutId || !token) {
+                alert('Please enter hangout ID and token first');
+                return;
+            }
+            
+            try {
+                addEvent('📥 Loading all messages...', 'info');
+                const response = await fetch(`http://localhost:3000/chat/hangout/${hangoutId}/messages?limit=20`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    displayLoadedMessages(result.data, 'All Messages');
+                } else {
+                    addEvent(`❌ Error loading messages: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addEvent(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadRecentMessages() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            const token = document.getElementById('token').value;
+            
+            if (!hangoutId || !token) {
+                alert('Please enter hangout ID and token first');
+                return;
+            }
+            
+            try {
+                addEvent('📥 Loading recent messages (24h)...', 'info');
+                const response = await fetch(`http://localhost:3000/chat/hangout/${hangoutId}/recent-messages?hours=24`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    displayLoadedMessages(result.data, 'Recent Messages (24h)');
+                } else {
+                    addEvent(`❌ Error loading recent messages: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addEvent(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadRestrictedHistory() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            const token = document.getElementById('token').value;
+            
+            if (!hangoutId || !token) {
+                alert('Please enter hangout ID and token first');
+                return;
+            }
+            
+            try {
+                addEvent('📥 Loading restricted history...', 'info');
+                const response = await fetch(`http://localhost:3000/chat/hangout/${hangoutId}/messages?restrictHistory=true&limit=20`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    displayLoadedMessages(result.data, 'Restricted History');
+                } else {
+                    addEvent(`❌ Error loading restricted history: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addEvent(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadCustomRecentMessages() {
+            const hangoutId = document.getElementById('hangoutId').value;
+            const token = document.getElementById('token').value;
+            
+            if (!hangoutId || !token) {
+                alert('Please enter hangout ID and token first');
+                return;
+            }
+            
+            try {
+                addEvent('📥 Loading last 6 hours messages...', 'info');
+                const response = await fetch(`http://localhost:3000/chat/hangout/${hangoutId}/recent-messages?hours=6`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    displayLoadedMessages(result.data, 'Last 6 Hours');
+                } else {
+                    addEvent(`❌ Error loading 6h messages: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addEvent(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayLoadedMessages(messages, title) {
+            const messagesDiv = document.getElementById('messages');
+            
+            // Add title separator
+            const titleElement = document.createElement('div');
+            titleElement.innerHTML = `<hr><strong>📋 ${title} (${messages.length} messages):</strong><hr>`;
+            titleElement.style.backgroundColor = '#f0f0f0';
+            titleElement.style.padding = '5px';
+            titleElement.style.margin = '5px 0';
+            messagesDiv.appendChild(titleElement);
+            
+            // Add messages (reverse order since API returns newest first)
+            messages.reverse().forEach(message => {
+                addMessage(message);
+            });
+            
+            addEvent(`✅ Loaded ${messages.length} messages for ${title}`, 'success');
+        }
+        
+        function clearMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            addEvent('🗑️ Messages cleared', 'info');
         }
     </script>
 </body>
