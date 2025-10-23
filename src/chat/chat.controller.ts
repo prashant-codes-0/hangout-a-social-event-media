@@ -52,6 +52,7 @@ export class ChatController {
   @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of messages to fetch (default: 50)' })
   @ApiQuery({ name: 'skip', required: false, description: 'Number of messages to skip (default: 0)' })
+  @ApiQuery({ name: 'restrictHistory', required: false, description: 'Only show recent messages (default: false)' })
   @ApiResponse({
     status: 200,
     description: 'Messages retrieved successfully',
@@ -65,12 +66,14 @@ export class ChatController {
     @Request() req,
     @Query('limit') limit?: number,
     @Query('skip') skip?: number,
+    @Query('restrictHistory') restrictHistory?: string,
   ) {
     return this.chatService.getMessages(
       hangoutId,
       req.user.id,
       limit ? parseInt(limit.toString()) : 50,
       skip ? parseInt(skip.toString()) : 0,
+      restrictHistory === 'true',
     );
   }
 
@@ -107,5 +110,31 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Message not found' })
   async deleteMessage(@Param('messageId') messageId: string, @Request() req) {
     return this.chatService.deleteMessage(messageId, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('hangout/:hangoutId/recent-messages')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get recent messages for a hangout (last 24 hours)' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiQuery({ name: 'hours', required: false, description: 'Hours to look back (default: 24)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent messages retrieved successfully',
+    type: [MessageResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'You must be an attendee to view messages' })
+  @ApiResponse({ status: 404, description: 'Hangout not found' })
+  async getRecentMessages(
+    @Param('hangoutId') hangoutId: string,
+    @Request() req,
+    @Query('hours') hours?: number,
+  ) {
+    return this.chatService.getRecentMessages(
+      hangoutId,
+      req.user.id,
+      hours ? parseInt(hours.toString()) : 24,
+    );
   }
 }

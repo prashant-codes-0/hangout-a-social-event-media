@@ -52,7 +52,7 @@ export class ChatService {
     return message;
   }
 
-  async getMessages(hangoutId: string, userId: string, limit = 50, skip = 0) {
+  async getMessages(hangoutId: string, userId: string, limit = 50, skip = 0, restrictHistory = false) {
     // Check if hangout exists
     const hangout = await this.hangoutModel.findById(hangoutId);
     if (!hangout) {
@@ -69,13 +69,30 @@ export class ChatService {
       throw new ForbiddenException('You must be an attendee to view messages');
     }
 
+    // Build query
+    const query: any = { hangoutId };
+    
+    // Option: Restrict to last 24 hours for new users
+    if (restrictHistory) {
+      const last24Hours = new Date();
+      last24Hours.setHours(last24Hours.getHours() - 24);
+      query.createdAt = { $gte: last24Hours };
+    }
+
     return this.messageModel
-      .find({ hangoutId })
+      .find(query)
       .populate('userId', 'name email')
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
       .exec();
+  }
+
+  async getRecentMessages(hangoutId: string, userId: string, hours = 24) {
+    const fromTime = new Date();
+    fromTime.setHours(fromTime.getHours() - hours);
+    
+    return this.getMessages(hangoutId, userId, 50, 0, false);
   }
 
   async editMessage(messageId: string, editMessageDto: EditMessageDto, userId: string) {

@@ -134,8 +134,16 @@ Content-Type: application/json
   "messageType": "text"
 }
 
-### Get Messages for Hangout
+### Get Messages for Hangout (Full History)
 GET http://localhost:3000/chat/hangout/HANGOUT_ID_HERE/messages?limit=20&skip=0
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Get Messages for Hangout (Restricted History - Last 24h)
+GET http://localhost:3000/chat/hangout/HANGOUT_ID_HERE/messages?limit=20&skip=0&restrictHistory=true
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### Get Recent Messages Only (Last 24 hours)
+GET http://localhost:3000/chat/hangout/HANGOUT_ID_HERE/recent-messages?hours=24
 Authorization: Bearer YOUR_JWT_TOKEN_HERE
 
 ### Edit Message
