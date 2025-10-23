@@ -1,0 +1,98 @@
+import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, BehaviorSubject, tap } from 'rxjs';
+import { AuthUser, AuthResponse, SignUpDto, SignInDto } from '../models/auth.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class AuthService {
+  private http = inject(HttpClient);
+  private apiUrl = 'http://localhost:3000/auth';
+  
+  private currentUserSubject = new BehaviorSubject<AuthUser | null>(null);
+  public currentUser$ = this.currentUserSubject.asObservable();
+  
+  // Signal for reactive UI
+  public isAuthenticated = signal<boolean>(false);
+  public currentUser = signal<AuthUser | null>(null);
+
+  constructor() {
+    // Check for existing token on app start
+    this.loadUserFromStorage();
+  }
+
+  signUp(userData: SignUpDto): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/signup`, userData);
+  }
+
+  signIn(credentials: SignInDto): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/signin`, credentials)
+      .pipe(
+        tap(response => {
+          if (response.success) {
+            this.setCurrentUser(response.data.user, response.data.token);
+          }
+        })
+      );
+  }
+
+  signOut(): void {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    this.currentUserSubject.next(null);
+    this.isAuthenticated.set(false);
+    this.currentUser.set(null);
+  }
+
+  getToken(): string | null {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem('token');
+    }
+    return null;
+  }
+
+  private setCurrentUser(user: AuthUser, token: string): void {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    this.currentUserSubject.next(user);
+    this.isAuthenticated.set(true);
+    this.currentUser.set(user);
+  }
+
+  private loadUserFromStorage(): void {
+    // Check if we're in browser environment
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr) as AuthUser;
+          this.currentUserSubject.next(user);
+          this.isAuthenticated.set(true);
+          this.currentUser.set(user);
+        } catch (error) {
+          // Invalid stored data, clear it
+          this.signOut();
+        }
+      }
+    }
+  }
+
+  isAdmin(): boolean {
+    return this.currentUser()?.role === 'admin';
+  }
+
+  isSponsor(): boolean {
+    return this.currentUser()?.role === 'sponsor';
+  }
+
+  isVerified(): boolean {
+    return this.currentUser()?.verified || false;
+  }
+}

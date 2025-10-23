@@ -1,0 +1,15 @@
+.navbar {
+  backdrop-filter: blur(10px);
+}
+
+.menu li a.active {
+  @apply bg-primary text-primary-content;
+}
+
+.avatar {
+  transition: all 0.2s ease;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}

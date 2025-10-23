@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+
+<head>
+  <meta charset="utf-8">
+  <title>Hangouts - Find Your Tribe</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta name="description"
+    content="Discover amazing hangouts, meet new people, and create unforgettable memories together.">
+
+  <!-- TailwindCSS and DaisyUI via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {}
+      },
+      daisyui: {
+        themes: ["light", "dark", "cupcake", "bumblebee", "emerald", "corporate", "synthwave", "retro", "cyberpunk", "valentine", "halloween", "garden", "forest", "aqua", "lofi", "pastel", "fantasy", "wireframe", "black", "luxury", "dracula", "cmyk", "autumn", "business", "acid", "lemonade", "night", "coffee", "winter"]
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <app-root></app-root>
+</body>
+
+</html>

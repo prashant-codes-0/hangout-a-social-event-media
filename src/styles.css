@@ -1,0 +1,54 @@
+/* Custom styles for hangouts app */
+.hangout-card {
+  transition: all 0.3s ease;
+}
+
+.hangout-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.blast-btn {
+  color: #f97316;
+  transition: all 0.2s ease;
+}
+
+.blast-btn:hover {
+  color: #ea580c;
+  background-color: #fff7ed;
+  transform: scale(1.1);
+}
+
+.filter-chip {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+  transform: scale(1.05);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Navbar styles */
+.navbar {
+  backdrop-filter: blur(10px);
+}
+
+.menu li a.active {
+  background-color: hsl(var(--p));
+  color: hsl(var(--pc));
+}
+
+.avatar {
+  transition: all 0.2s ease;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}
