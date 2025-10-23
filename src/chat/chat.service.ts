@@ -20,22 +20,7 @@ export class ChatService {
   async sendMessage(sendMessageDto: SendMessageDto, userId: string) {
     const { hangoutId, content, messageType = 'text' } = sendMessageDto;
 
-    // Check if hangout exists
-    const hangout = await this.hangoutModel.findById(hangoutId);
-    if (!hangout) {
-      throw new NotFoundException('Hangout not found');
-    }
-
-    // Check if user is an attendee or creator
-    const isAttendee = hangout.attendees.some(
-      attendeeId => attendeeId.toString() === userId
-    );
-    const isCreator = hangout.createdBy.toString() === userId;
-
-    if (!isAttendee && !isCreator) {
-      throw new ForbiddenException('You must be an attendee to send messages');
-    }
-
+    // Access validation is now handled by HangoutAccessGuard at the controller level
     // Create message
     const message = new this.messageModel({
       hangoutId,

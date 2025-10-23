@@ -30,7 +30,7 @@ import { SendMessageDto, EditMessageDto, MessageResponseDto } from './dto/chat.d
 export class ChatController {
   constructor(private readonly chatService: ChatService) { }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post('message')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Send a message to hangout chat' })
@@ -40,7 +40,7 @@ export class ChatController {
     type: MessageResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You must be an attendee to send messages' })
+  @ApiResponse({ status: 403, description: 'You must be an attendee, creator, or admin to send messages' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   @ApiBody({ type: SendMessageDto })
   async sendMessage(@Body() sendMessageDto: SendMessageDto, @Request() req) {

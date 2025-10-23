@@ -21,8 +21,8 @@ export class HangoutAccessGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    // Get hangout ID from route params
-    const hangoutId = request.params.hangoutId || request.params.id;
+    // Get hangout ID from route params or request body
+    const hangoutId = request.params.hangoutId || request.params.id || request.body?.hangoutId;
     
     if (!hangoutId) {
       throw new ForbiddenException('Hangout ID is required');
