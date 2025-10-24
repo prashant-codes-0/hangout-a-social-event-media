@@ -1,0 +1,242 @@
+<!-- Main Layout Container -->
+<div class="min-h-screen bg-base-200">
+  <!-- Header -->
+  <header class="navbar bg-base-100 shadow-lg sticky top-0 z-40">
+    <!-- Mobile Menu Button -->
+    <div class="navbar-start">
+      <button 
+        class="btn btn-ghost lg:hidden"
+        (click)="toggleSidebar()"
+        [attr.aria-label]="sidebarOpen() ? 'Close menu' : 'Open menu'"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          @if (sidebarOpen()) {
+            <g [innerHTML]="getIconSvg('close')"></g>
+          } @else {
+            <g [innerHTML]="getIconSvg('menu')"></g>
+          }
+        </svg>
+      </button>
+
+      <!-- Logo -->
+      <a class="btn btn-ghost text-xl" routerLink="/" (click)="closeSidebar()">
+        <span class="text-2xl">🎉</span>
+        <span class="hidden sm:inline">Hangouts</span>
+      </a>
+    </div>
+
+    <!-- Desktop Navigation -->
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1">
+        @for (item of navigationItems(); track item.route) {
+          <li>
+            <a 
+              [routerLink]="item.route"
+              [class.active]="item.active"
+              [class.btn-primary]="item.highlight"
+              class="transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <g [innerHTML]="getIconSvg(item.icon)"></g>
+              </svg>
+              {{ item.label }}
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <!-- User Menu / Auth Buttons -->
+    <div class="navbar-end">
+      @if (isAuthenticated()) {
+        <!-- Theme Controller -->
+        <div class="dropdown dropdown-end mr-4">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5H9M21 9H9M21 13H9M21 17H9" />
+            </svg>
+          </div>
+          <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-2xl bg-base-300 rounded-box w-52">
+            <li><input type="radio" name="theme-dropdown" class="theme-controller btn btn-sm btn-block btn-ghost justify-start" aria-label="Light" value="light" /></li>
+            <li><input type="radio" name="theme-dropdown" class="theme-controller btn btn-sm btn-block btn-ghost justify-start" aria-label="Dark" value="dark" /></li>
+            <li><input type="radio" name="theme-dropdown" class="theme-controller btn btn-sm btn-block btn-ghost justify-start" aria-label="Cupcake" value="cupcake" /></li>
+            <li><input type="radio" name="theme-dropdown" class="theme-controller btn btn-sm btn-block btn-ghost justify-start" aria-label="Synthwave" value="synthwave" /></li>
+          </ul>
+        </div>
+
+        <!-- User Dropdown -->
+        <div class="dropdown dropdown-end">
+          <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+            <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
+              <span class="text-sm font-bold">
+                {{ (currentUser()?.name || 'U').charAt(0).toUpperCase() }}
+              </span>
+            </div>
+          </div>
+          <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+            <li class="menu-title">
+              <span>{{ currentUser()?.name || 'User' }}</span>
+              <span class="text-xs opacity-60">{{ currentUser()?.email || '' }}</span>
+            </li>
+            <li><a routerLink="/profile">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <g [innerHTML]="getIconSvg('user')"></g>
+              </svg>
+              Profile
+            </a></li>
+            <li><a routerLink="/settings">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <g [innerHTML]="getIconSvg('settings')"></g>
+              </svg>
+              Settings
+            </a></li>
+            @if (isAdmin()) {
+              <li><a routerLink="/admin">Admin Panel</a></li>
+            }
+            <li><a (click)="signOut()">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <g [innerHTML]="getIconSvg('logout')"></g>
+              </svg>
+              Logout
+            </a></li>
+          </ul>
+        </div>
+      } @else {
+        <!-- Auth Buttons -->
+        <div class="flex gap-2">
+          <button class="btn btn-ghost btn-sm" (click)="navigateToAuth('login')">
+            Login
+          </button>
+          <button class="btn btn-primary btn-sm" (click)="navigateToAuth('signup')">
+            Sign Up
+          </button>
+        </div>
+      }
+    </div>
+  </header>
+
+  <!-- Mobile Sidebar Overlay -->
+  @if (sidebarOpen()) {
+    <div 
+      class="fixed inset-0 z-30 bg-black bg-opacity-50 lg:hidden"
+      (click)="closeSidebar()"
+    ></div>
+  }
+
+  <!-- Mobile Sidebar -->
+  <aside 
+    class="fixed top-0 left-0 z-40 w-64 h-full bg-base-100 shadow-xl transform transition-transform duration-300 lg:hidden"
+    [class.translate-x-0]="sidebarOpen()"
+    [class.-translate-x-full]="!sidebarOpen()"
+  >
+    <!-- Sidebar Header -->
+    <div class="flex items-center justify-between p-4 border-b border-base-300">
+      <a class="flex items-center gap-2 text-xl font-bold" routerLink="/" (click)="closeSidebar()">
+        <span class="text-2xl">🎉</span>
+        Hangouts
+      </a>
+      <button class="btn btn-ghost btn-sm btn-circle" (click)="closeSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <g [innerHTML]="getIconSvg('close')"></g>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <nav class="p-4">
+      <ul class="menu menu-vertical w-full">
+        @for (item of navigationItems(); track item.route) {
+          <li>
+            <a 
+              [routerLink]="item.route"
+              [class.active]="item.active"
+              [class.btn-primary]="item.highlight"
+              class="flex items-center gap-3 transition-colors"
+              (click)="closeSidebar()"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <g [innerHTML]="getIconSvg(item.icon)"></g>
+              </svg>
+              {{ item.label }}
+            </a>
+          </li>
+        }
+      </ul>
+
+      <!-- Mobile Auth Section -->
+      @if (!isAuthenticated()) {
+        <div class="divider"></div>
+        <div class="space-y-2">
+          <button class="btn btn-ghost w-full justify-start" (click)="navigateToAuth('login')">
+            Login
+          </button>
+          <button class="btn btn-primary w-full justify-start" (click)="navigateToAuth('signup')">
+            Sign Up
+          </button>
+        </div>
+      } @else {
+        <!-- Mobile User Section -->
+        <div class="divider"></div>
+        <div class="space-y-2">
+          <div class="flex items-center gap-3 p-2">
+            <div class="avatar">
+              <div class="w-8 rounded-full bg-primary text-primary-content flex items-center justify-center">
+                <span class="text-xs font-bold">
+                  {{ (currentUser()?.name || 'U').charAt(0).toUpperCase() }}
+                </span>
+              </div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate">{{ currentUser()?.name || 'User' }}</div>
+              <div class="text-xs opacity-60 truncate">{{ currentUser()?.email || '' }}</div>
+            </div>
+          </div>
+          <a class="btn btn-ghost w-full justify-start" routerLink="/profile" (click)="closeSidebar()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <g [innerHTML]="getIconSvg('user')"></g>
+            </svg>
+            Profile
+          </a>
+          <a class="btn btn-ghost w-full justify-start" routerLink="/settings" (click)="closeSidebar()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <g [innerHTML]="getIconSvg('settings')"></g>
+            </svg>
+            Settings
+          </a>
+          <button class="btn btn-ghost w-full justify-start text-error" (click)="signOut()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <g [innerHTML]="getIconSvg('logout')"></g>
+            </svg>
+            Logout
+          </button>
+        </div>
+      }
+    </nav>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="flex-1">
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer footer-center p-10 bg-base-300 text-base-content">
+    <div>
+      <div class="text-2xl mb-2">🎉</div>
+      <p class="font-bold">
+        Hangouts
+        <br>
+        Bringing people together since 2024
+      </p>
+      <p>Copyright © 2024 - All rights reserved</p>
+    </div>
+    <div>
+      <div class="grid grid-flow-col gap-4">
+        <a class="link link-hover">About us</a>
+        <a class="link link-hover">Contact</a>
+        <a class="link link-hover">Privacy Policy</a>
+        <a class="link link-hover">Terms of Service</a>
+      </div>
+    </div>
+  </footer>
+</div>

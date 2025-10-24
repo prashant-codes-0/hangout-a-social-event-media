@@ -1,0 +1,100 @@
+/* Auth Layout Component Styles */
+
+/* Background gradient animation */
+.bg-gradient-to-br {
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Header styling */
+.navbar {
+  border-bottom: 1px solid hsl(var(--b3) / 0.3);
+}
+
+/* Backdrop blur support */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+}
+
+.bg-base-100\/80 {
+  background-color: hsl(var(--b1) / 0.8);
+}
+
+.bg-base-100\/50 {
+  background-color: hsl(var(--b1) / 0.5);
+}
+
+/* Button hover effects */
+.btn-ghost:hover {
+  background-color: hsl(var(--b3) / 0.5);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+/* Logo animation */
+.text-2xl {
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+/* Content area styling */
+main {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Footer styling */
+footer {
+  margin-top: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .navbar {
+    padding: 0.5rem 1rem;
+  }
+  
+  main {
+    min-height: calc(100vh - 100px);
+    padding: 1rem;
+  }
+}
+
+/* Focus styles for accessibility */
+.btn:focus {
+  outline: 2px solid hsl(var(--p));
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}

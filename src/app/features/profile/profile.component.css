@@ -1,0 +1,90 @@
+/* Profile Component Styles */
+
+.avatar {
+  transition: transform 0.2s ease;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}
+
+/* Form validation styles */
+.input-error {
+  border-color: hsl(var(--er));
+}
+
+.input-error:focus {
+  border-color: hsl(var(--er));
+  box-shadow: 0 0 0 2px hsl(var(--er) / 0.2);
+}
+
+/* Card hover effects */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Button animations */
+.btn {
+  transition: all 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Alert animations */
+.alert {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Badge styling */
+.badge {
+  font-size: 0.75rem;
+}
+
+/* Danger zone styling */
+.text-error {
+  color: hsl(var(--er));
+}
+
+.btn-error {
+  border-color: hsl(var(--er));
+  color: hsl(var(--er));
+}
+
+.btn-error:hover {
+  background-color: hsl(var(--er));
+  color: hsl(var(--erc));
+}
+
+/* Loading state */
+.btn.loading {
+  pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .card-actions {
+    flex-direction: column;
+  }
+  
+  .card-actions .btn {
+    width: 100%;
+  }
+}

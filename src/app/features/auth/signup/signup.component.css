@@ -1,0 +1,68 @@
+/* Signup Component Styles */
+
+.card {
+  backdrop-filter: blur(10px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* Animation for error alerts */
+.alert {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Password toggle button styling */
+.relative button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.relative button:hover {
+  color: hsl(var(--p));
+}
+
+/* Form validation styles */
+.input-error {
+  border-color: hsl(var(--er));
+}
+
+.input-error:focus {
+  border-color: hsl(var(--er));
+  box-shadow: 0 0 0 2px hsl(var(--er) / 0.2);
+}
+
+.checkbox-error {
+  border-color: hsl(var(--er));
+}
+
+/* Focus styles for better accessibility */
+.btn:focus,
+.input:focus {
+  outline: 2px solid hsl(var(--p));
+  outline-offset: 2px;
+}
+
+/* Loading state styles */
+.btn.loading {
+  pointer-events: none;
+}

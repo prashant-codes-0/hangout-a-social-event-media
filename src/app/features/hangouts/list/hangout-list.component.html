@@ -1,0 +1,230 @@
+<!-- Hangout List Container -->
+<div class="container mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold">Discover Hangouts</h1>
+      <p class="text-base-content/70 mt-2">Find amazing events and meet new people</p>
+    </div>
+    @if (isAuthenticated) {
+      <a routerLink="/hangouts/create" class="btn btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Create Hangout
+      </a>
+    }
+  </div>
+
+  <!-- Search and Filters Section -->
+  <div class="mb-8">
+    <!-- Search Bar -->
+    <div class="flex flex-col lg:flex-row gap-4 mb-6">
+      <div class="flex-1">
+        <div class="form-control">
+          <div class="input-group">
+            <input 
+              type="text" 
+              placeholder="Search hangouts..." 
+              class="input input-bordered w-full"
+              [ngModel]="searchTerm()"
+              (ngModelChange)="searchTerm.set($event)"
+              (input)="applyFilters()"
+            />
+            <button class="btn btn-square btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Date Filter -->
+      <div class="form-control">
+        <input 
+          type="date" 
+          class="input input-bordered"
+          [ngModel]="selectedDate()"
+          (ngModelChange)="selectedDate.set($event)"
+          (change)="applyFilters()"
+        />
+      </div>
+      
+      <!-- Clear Filters -->
+      <button class="btn btn-outline" (click)="clearFilters()">
+        Clear Filters
+      </button>
+    </div>
+
+    <!-- Purpose Filter Chips -->
+    <div class="mb-6">
+      <h3 class="text-lg font-semibold mb-3">Popular Purposes</h3>
+      <div class="flex flex-wrap gap-2">
+        @for (purpose of popularPurposes; track purpose) {
+          <span 
+            class="badge badge-lg cursor-pointer transition-colors"
+            [class.badge-primary]="selectedPurpose() === purpose"
+            [class.badge-outline]="selectedPurpose() !== purpose"
+            (click)="setPurposeFilter(purpose)"
+          >
+            {{ purpose }}
+          </span>
+        }
+      </div>
+    </div>
+
+    <!-- Place Filter Chips -->
+    <div class="mb-6">
+      <h3 class="text-lg font-semibold mb-3">Popular Places</h3>
+      <div class="flex flex-wrap gap-2">
+        @for (place of popularPlaces; track place) {
+          <span 
+            class="badge badge-lg cursor-pointer transition-colors"
+            [class.badge-primary]="selectedPlace() === place"
+            [class.badge-outline]="selectedPlace() !== place"
+            (click)="setPlaceFilter(place)"
+          >
+            {{ place }}
+          </span>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (error()) {
+    <div class="alert alert-error mb-8">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ error() }}</span>
+      <button class="btn btn-sm btn-ghost" (click)="loadHangouts()">Retry</button>
+    </div>
+  }
+
+  <!-- Hangouts Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    @for (hangout of filteredHangouts(); track hangout._id) {
+      <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+        <figure class="px-6 pt-6">
+          <div class="w-full h-48 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl flex items-center justify-center">
+            <div class="text-center">
+              <div class="text-4xl mb-2">🎉</div>
+              <div class="text-sm opacity-70">{{ hangout.purpose }}</div>
+            </div>
+          </div>
+        </figure>
+        
+        <div class="card-body">
+          <!-- Header with title and sponsored badge -->
+          <div class="flex justify-between items-start mb-2">
+            <h2 class="card-title text-lg">{{ hangout.title }}</h2>
+            @if (hangout.sponsored) {
+              <div class="badge badge-accent">Sponsored</div>
+            }
+          </div>
+
+          <!-- Description -->
+          <p class="text-sm opacity-80 mb-3 line-clamp-2">{{ hangout.description }}</p>
+
+          <!-- Event Details -->
+          <div class="space-y-2 mb-4">
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{{ hangout.place }}</span>
+            </div>
+            
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{{ formatDate(hangout.time) }}</span>
+              <div class="badge badge-outline badge-sm">{{ getTimeUntil(hangout.time) }}</div>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span>{{ hangout.attendees.length }}/{{ hangout.capacity }} attending</span>
+            </div>
+          </div>
+
+          <!-- Creator Info -->
+          <div class="flex items-center gap-2 mb-4">
+            <div class="avatar placeholder">
+              <div class="bg-neutral-focus text-neutral-content rounded-full w-8">
+                <span class="text-xs">{{ hangout.createdBy.name.charAt(0).toUpperCase() }}</span>
+              </div>
+            </div>
+            <span class="text-sm">by {{ hangout.createdBy.name }}</span>
+          </div>
+
+          <!-- Actions -->
+          <div class="card-actions justify-between items-center">
+            <div class="flex items-center gap-2">
+              <!-- Blast Button -->
+              <button 
+                class="btn btn-ghost btn-sm"
+                [class.text-orange-600]="hangout.userHasBlasted"
+                (click)="toggleBlast(hangout)"
+                [disabled]="!isAuthenticated"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {{ hangout.blasts }}
+              </button>
+            </div>
+
+            <div class="flex gap-2">
+              <!-- View Details -->
+              <a [routerLink]="['/hangouts/details', hangout._id]" class="btn btn-ghost btn-sm">
+                View
+              </a>
+              
+              <!-- Join Button -->
+              @if (isAuthenticated) {
+                <button 
+                  class="btn btn-primary btn-sm"
+                  (click)="joinHangout(hangout)"
+                >
+                  Join
+                </button>
+              } @else {
+                <a routerLink="/auth/login" class="btn btn-primary btn-sm">
+                  Login to Join
+                </a>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Empty State -->
+  @if (!loading() && filteredHangouts().length === 0) {
+    <div class="text-center py-12">
+      <div class="text-6xl mb-4">🔍</div>
+      <h3 class="text-2xl font-bold mb-2">No hangouts found</h3>
+      <p class="text-gray-600 mb-6">Try adjusting your filters or create a new hangout!</p>
+      @if (isAuthenticated) {
+        <a routerLink="/hangouts/create" class="btn btn-primary">
+          Create First Hangout
+        </a>
+      }
+    </div>
+  }
+</div>

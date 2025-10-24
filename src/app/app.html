@@ -1,4 +1,13 @@
-<app-navbar></app-navbar>
-<main class="min-h-screen bg-base-200">
-  <router-outlet />
-</main>
+<!-- Dynamic Layout System -->
+@switch (currentLayout()) {
+  @case ('auth') {
+    <app-auth-layout>
+      <router-outlet />
+    </app-auth-layout>
+  }
+  @default {
+    <app-main-layout>
+      <router-outlet />
+    </app-main-layout>
+  }
+}

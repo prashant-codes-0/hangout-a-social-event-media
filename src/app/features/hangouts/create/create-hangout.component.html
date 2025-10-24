@@ -1,0 +1,231 @@
+<!-- Create Hangout Container -->
+<div class="py-8">
+  <div class="container mx-auto px-4">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold mb-2">Create a Hangout</h1>
+      <p class="text-base-content/70">Bring people together for amazing experiences</p>
+    </div>
+
+    <!-- Form Card -->
+    <div class="max-w-2xl mx-auto">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <!-- Error Alert -->
+          @if (error()) {
+            <div class="alert alert-error mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{{ error() }}</span>
+            </div>
+          }
+
+          <!-- Create Form -->
+          <form [formGroup]="hangoutForm" (ngSubmit)="onSubmit()" class="space-y-6">
+            <!-- Title -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Hangout Title *</span>
+                <span class="label-text-alt">{{ hangoutForm.get('title')?.value?.length || 0 }}/100</span>
+              </label>
+              <input 
+                type="text" 
+                formControlName="title"
+                placeholder="Give your hangout a catchy title"
+                class="input input-bordered w-full"
+                [class.input-error]="isFieldInvalid('title')"
+                maxlength="100"
+              />
+              @if (isFieldInvalid('title')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('title') }}</span>
+                </label>
+              }
+            </div>
+
+            <!-- Description -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Description *</span>
+                <span class="label-text-alt">{{ hangoutForm.get('description')?.value?.length || 0 }}/500</span>
+              </label>
+              <textarea 
+                formControlName="description"
+                placeholder="Describe what your hangout is about, what to expect, and any special instructions"
+                class="textarea textarea-bordered h-24 resize-none"
+                [class.textarea-error]="isFieldInvalid('description')"
+                maxlength="500"
+              ></textarea>
+              @if (isFieldInvalid('description')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('description') }}</span>
+                </label>
+              }
+            </div>
+
+            <!-- Purpose -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Purpose *</span>
+              </label>
+              <select 
+                formControlName="purpose"
+                class="select select-bordered w-full"
+                [class.select-error]="isFieldInvalid('purpose')"
+              >
+                <option value="">Select a purpose</option>
+                @for (purpose of purposeOptions; track purpose) {
+                  <option [value]="purpose">{{ purpose }}</option>
+                }
+              </select>
+              @if (isFieldInvalid('purpose')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('purpose') }}</span>
+                </label>
+              }
+              
+              <!-- Purpose Quick Select -->
+              <div class="flex flex-wrap gap-2 mt-2">
+                @for (purpose of purposeOptions.slice(0, 6); track purpose) {
+                  <button 
+                    type="button"
+                    class="badge badge-outline badge-lg cursor-pointer hover:badge-primary"
+                    [class.badge-primary]="hangoutForm.get('purpose')?.value === purpose"
+                    (click)="selectPurpose(purpose)"
+                  >
+                    {{ purpose }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Place -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Location *</span>
+              </label>
+              <input 
+                type="text" 
+                formControlName="place"
+                placeholder="Where will this hangout take place?"
+                class="input input-bordered w-full"
+                [class.input-error]="isFieldInvalid('place')"
+                list="place-suggestions"
+              />
+              <datalist id="place-suggestions">
+                @for (place of placeSuggestions; track place) {
+                  <option [value]="place">{{ place }}</option>
+                }
+              </datalist>
+              @if (isFieldInvalid('place')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('place') }}</span>
+                </label>
+              }
+              
+              <!-- Place Quick Select -->
+              <div class="flex flex-wrap gap-2 mt-2">
+                @for (place of placeSuggestions.slice(0, 5); track place) {
+                  <button 
+                    type="button"
+                    class="badge badge-outline badge-lg cursor-pointer hover:badge-secondary"
+                    [class.badge-secondary]="hangoutForm.get('place')?.value === place"
+                    (click)="selectPlace(place)"
+                  >
+                    {{ place }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Date and Time -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Date & Time *</span>
+              </label>
+              <input 
+                type="datetime-local" 
+                formControlName="time"
+                class="input input-bordered w-full"
+                [class.input-error]="isFieldInvalid('time')"
+                [min]="getMinDateTime()"
+              />
+              @if (isFieldInvalid('time')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('time') }}</span>
+                </label>
+              }
+              <label class="label">
+                <span class="label-text-alt">Select a future date and time for your hangout</span>
+              </label>
+            </div>
+
+            <!-- Capacity -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text font-medium">Maximum Attendees *</span>
+              </label>
+              <div class="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  formControlName="capacity"
+                  min="2" 
+                  max="100" 
+                  class="range range-primary flex-1"
+                />
+                <div class="badge badge-primary badge-lg">
+                  {{ hangoutForm.get('capacity')?.value }} people
+                </div>
+              </div>
+              @if (isFieldInvalid('capacity')) {
+                <label class="label">
+                  <span class="label-text-alt text-error">{{ getFieldError('capacity') }}</span>
+                </label>
+              }
+              <label class="label">
+                <span class="label-text-alt">How many people can join this hangout?</span>
+              </label>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4 pt-6">
+              <button 
+                type="button" 
+                class="btn btn-outline flex-1"
+                routerLink="/hangouts"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                class="btn btn-primary flex-1"
+                [class.loading]="isLoading()"
+                [disabled]="isLoading() || !hangoutForm.valid"
+              >
+                @if (isLoading()) {
+                  <span class="loading loading-spinner loading-sm"></span>
+                  Creating...
+                } @else {
+                  Create Hangout
+                }
+              </button>
+            </div>
+          </form>
+
+          <!-- Tips -->
+          <div class="divider mt-8"></div>
+          <div class="bg-base-200 p-4 rounded-lg">
+            <h3 class="font-semibold mb-2">💡 Tips for a great hangout:</h3>
+            <ul class="text-sm text-base-content/70 space-y-1">
+              <li>• Be specific about what to expect</li>
+              <li>• Choose a convenient location</li>
+              <li>• Set a reasonable capacity</li>
+              <li>• Include any special requirements</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

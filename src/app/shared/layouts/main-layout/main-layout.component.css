@@ -1,0 +1,170 @@
+/* Main Layout Component Styles */
+
+/* Header styling */
+.navbar {
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid hsl(var(--b3));
+}
+
+/* Active navigation item */
+.menu a.active {
+  background-color: hsl(var(--p) / 0.1);
+  color: hsl(var(--p));
+  font-weight: 600;
+}
+
+/* Highlight button (Create) */
+.btn-primary {
+  background-color: hsl(var(--p));
+  border-color: hsl(var(--p));
+  color: hsl(var(--pc));
+}
+
+.btn-primary:hover {
+  background-color: hsl(var(--pf));
+  border-color: hsl(var(--pf));
+}
+
+/* Sidebar animations */
+.transform {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mobile sidebar overlay */
+.bg-black.bg-opacity-50 {
+  backdrop-filter: blur(4px);
+}
+
+/* Avatar styling */
+.avatar .w-10 {
+  transition: transform 0.2s ease;
+}
+
+.avatar:hover .w-10 {
+  transform: scale(1.05);
+}
+
+/* Menu item hover effects */
+.menu li > a {
+  transition: all 0.2s ease;
+  border-radius: 0.5rem;
+}
+
+.menu li > a:hover {
+  background-color: hsl(var(--b3));
+  transform: translateX(4px);
+}
+
+.menu li > a.active:hover {
+  background-color: hsl(var(--p) / 0.2);
+}
+
+/* Theme controller styling */
+.theme-controller {
+  transition: all 0.2s ease;
+}
+
+.theme-controller:checked {
+  background-color: hsl(var(--p));
+  border-color: hsl(var(--p));
+}
+
+/* Dropdown animations */
+.dropdown-content {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Footer styling */
+.footer {
+  margin-top: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .navbar-center {
+    display: none;
+  }
+}
+
+/* Mobile menu button animation */
+.btn-ghost svg {
+  transition: transform 0.2s ease;
+}
+
+.btn-ghost:hover svg {
+  transform: scale(1.1);
+}
+
+/* Sidebar shadow */
+aside {
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Content area padding for mobile */
+@media (max-width: 640px) {
+  main {
+    padding-top: 0;
+  }
+}
+
+/* User info truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Menu title styling */
+.menu-title {
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid hsl(var(--b3));
+}
+
+/* Error text color for logout */
+.text-error {
+  color: hsl(var(--er));
+}
+
+.text-error:hover {
+  color: hsl(var(--erc));
+}
+
+/* Smooth scrolling for main content */
+main {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+.btn:focus,
+.menu a:focus {
+  outline: 2px solid hsl(var(--p));
+  outline-offset: 2px;
+}
+
+/* Loading states */
+.btn.loading {
+  pointer-events: none;
+}
+
+/* Icon alignment */
+svg {
+  flex-shrink: 0;
+}
+
+/* Divider styling */
+.divider {
+  margin: 1rem 0;
+  opacity: 0.3;
+}

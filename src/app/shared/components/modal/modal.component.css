@@ -1,0 +1,77 @@
+/* Modal Component Styles */
+
+/* Modal animation */
+.fixed {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.bg-base-100 {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Backdrop blur effect */
+.bg-black.bg-opacity-50 {
+  backdrop-filter: blur(4px);
+}
+
+/* Scrollbar styling for modal body */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: hsl(var(--b3));
+  border-radius: 3px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.3);
+  border-radius: 3px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--bc) / 0.5);
+}
+
+/* Focus trap for accessibility */
+.fixed {
+  outline: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .p-4 {
+    padding: 1rem;
+  }
+  
+  .p-6 {
+    padding: 1rem;
+  }
+  
+  .max-w-sm,
+  .max-w-md,
+  .max-w-lg,
+  .max-w-xl {
+    max-width: calc(100vw - 2rem);
+  }
+}

@@ -1,0 +1,173 @@
+<!-- Profile Page -->
+<div class="container mx-auto px-4 py-8 max-w-2xl">
+  <!-- Header -->
+  <div class="text-center mb-8">
+    <div class="avatar placeholder mb-4">
+      <div class="bg-primary text-primary-content rounded-full w-24">
+        <span class="text-3xl font-bold">
+          {{ (currentUser()?.name || 'U').charAt(0).toUpperCase() }}
+        </span>
+      </div>
+    </div>
+    <h1 class="text-3xl font-bold">My Profile</h1>
+    <p class="text-base-content/70 mt-2">Manage your account information</p>
+  </div>
+
+  <!-- Success Message -->
+  @if (success()) {
+    <div class="alert alert-success mb-6">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ success() }}</span>
+    </div>
+  }
+
+  <!-- Error Message -->
+  @if (error()) {
+    <div class="alert alert-error mb-6">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- Profile Card -->
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <!-- Profile Information -->
+      @if (!isEditing()) {
+        <div class="space-y-6">
+          <!-- Name -->
+          <div class="flex justify-between items-center p-4 bg-base-200 rounded-lg">
+            <div>
+              <label class="text-sm font-medium opacity-70">Full Name</label>
+              <p class="text-lg">{{ currentUser()?.name || 'Not set' }}</p>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div class="flex justify-between items-center p-4 bg-base-200 rounded-lg">
+            <div>
+              <label class="text-sm font-medium opacity-70">Email Address</label>
+              <p class="text-lg">{{ currentUser()?.email || 'Not set' }}</p>
+            </div>
+          </div>
+
+          <!-- Role -->
+          <div class="flex justify-between items-center p-4 bg-base-200 rounded-lg">
+            <div>
+              <label class="text-sm font-medium opacity-70">Account Type</label>
+              <p class="text-lg capitalize">
+                {{ currentUser()?.role || 'User' }}
+                @if (currentUser()?.verified) {
+                  <span class="badge badge-success badge-sm ml-2">Verified</span>
+                } @else {
+                  <span class="badge badge-warning badge-sm ml-2">Unverified</span>
+                }
+              </p>
+            </div>
+          </div>
+
+          <!-- Edit Button -->
+          <div class="card-actions justify-end">
+            <button class="btn btn-primary" (click)="toggleEdit()">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Profile
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- Edit Form -->
+      @if (isEditing()) {
+        <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" class="space-y-6">
+          <!-- Name Field -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">Full Name</span>
+            </label>
+            <input 
+              type="text" 
+              formControlName="name"
+              placeholder="Enter your full name"
+              class="input input-bordered w-full"
+              [class.input-error]="isFieldInvalid('name')"
+            />
+            @if (isFieldInvalid('name')) {
+              <label class="label">
+                <span class="label-text-alt text-error">{{ getFieldError('name') }}</span>
+              </label>
+            }
+          </div>
+
+          <!-- Email Field -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">Email Address</span>
+            </label>
+            <input 
+              type="email" 
+              formControlName="email"
+              placeholder="Enter your email"
+              class="input input-bordered w-full"
+              [class.input-error]="isFieldInvalid('email')"
+            />
+            @if (isFieldInvalid('email')) {
+              <label class="label">
+                <span class="label-text-alt text-error">{{ getFieldError('email') }}</span>
+              </label>
+            }
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="card-actions justify-end gap-2">
+            <button 
+              type="button" 
+              class="btn btn-outline"
+              (click)="toggleEdit()"
+              [disabled]="isLoading()"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              class="btn btn-primary"
+              [class.loading]="isLoading()"
+              [disabled]="isLoading() || !profileForm.valid"
+            >
+              @if (isLoading()) {
+                <span class="loading loading-spinner loading-sm"></span>
+                Saving...
+              } @else {
+                Save Changes
+              }
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+  </div>
+
+  <!-- Additional Actions -->
+  <div class="mt-8 space-y-4">
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h3 class="card-title text-error">Danger Zone</h3>
+        <p class="text-sm opacity-70 mb-4">These actions cannot be undone.</p>
+        
+        <div class="space-y-3">
+          <button class="btn btn-outline btn-error btn-sm">
+            Change Password
+          </button>
+          <button class="btn btn-outline btn-error btn-sm">
+            Delete Account
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

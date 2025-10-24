@@ -1,0 +1,32 @@
+<!-- Auth Layout Container -->
+<div class="min-h-screen bg-gradient-to-br from-primary/10 via-base-200 to-secondary/10">
+  <!-- Simple Header -->
+  <header class="navbar bg-base-100/80 backdrop-blur-sm shadow-sm">
+    <div class="navbar-start">
+      <a class="btn btn-ghost text-xl" routerLink="/">
+        <span class="text-2xl">🎉</span>
+        <span class="hidden sm:inline">Hangouts</span>
+      </a>
+    </div>
+    <div class="navbar-end">
+      <a class="btn btn-ghost btn-sm" routerLink="/">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Home
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1">
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Simple Footer -->
+  <footer class="footer footer-center p-4 bg-base-100/50 backdrop-blur-sm text-base-content/70">
+    <div>
+      <p class="text-sm">© 2024 Hangouts. All rights reserved.</p>
+    </div>
+  </footer>
+</div>

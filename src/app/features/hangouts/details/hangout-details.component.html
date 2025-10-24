@@ -1,0 +1,250 @@
+<!-- Hangout Details Container -->
+<div>
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="flex justify-center items-center min-h-screen">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (error() && !loading()) {
+    <div class="container mx-auto px-4 py-8">
+      <div class="alert alert-error">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{{ error() }}</span>
+        <button class="btn btn-sm btn-ghost" routerLink="/hangouts">Back to Hangouts</button>
+      </div>
+    </div>
+  }
+
+  <!-- Hangout Details -->
+  @if (hangout() && !loading()) {
+    <div class="container mx-auto px-4 py-8">
+      <!-- Back Button -->
+      <div class="mb-6">
+        <button class="btn btn-ghost" routerLink="/hangouts">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Hangouts
+        </button>
+      </div>
+
+      <!-- Main Content -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Details -->
+        <div class="lg:col-span-2">
+          <div class="card bg-base-100 shadow-xl">
+            <!-- Hero Image -->
+            <figure class="px-6 pt-6">
+              <div class="w-full h-64 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-6xl mb-4">🎉</div>
+                  <div class="text-lg opacity-70">{{ hangout()!.purpose }}</div>
+                </div>
+              </div>
+            </figure>
+
+            <div class="card-body">
+              <!-- Header -->
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h1 class="text-3xl font-bold mb-2">{{ hangout()!.title }}</h1>
+                  @if (hangout()!.sponsored) {
+                    <div class="badge badge-accent badge-lg">Sponsored Event</div>
+                  }
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex gap-2">
+                  @if (canEdit()) {
+                    <button class="btn btn-outline btn-sm" [routerLink]="['/hangouts/edit', hangout()!._id]">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit
+                    </button>
+                    <button 
+                      class="btn btn-error btn-sm" 
+                      (click)="deleteHangout()"
+                      [class.loading]="actionLoading()"
+                      [disabled]="actionLoading()"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <!-- Description -->
+              <div class="mb-6">
+                <h3 class="text-xl font-semibold mb-3">About this hangout</h3>
+                <p class="text-base-content/80 leading-relaxed">{{ hangout()!.description }}</p>
+              </div>
+
+              <!-- Event Details Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Date & Time -->
+                <div class="flex items-start gap-3 p-4 bg-base-200 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h4 class="font-semibold">Date & Time</h4>
+                    <p class="text-sm text-base-content/70">{{ formatDate(hangout()!.time) }}</p>
+                    <div class="badge badge-outline badge-sm mt-1">{{ getTimeUntil(hangout()!.time) }}</div>
+                  </div>
+                </div>
+
+                <!-- Location -->
+                <div class="flex items-start gap-3 p-4 bg-base-200 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <h4 class="font-semibold">Location</h4>
+                    <p class="text-sm text-base-content/70">{{ hangout()!.place }}</p>
+                  </div>
+                </div>
+
+                <!-- Capacity -->
+                <div class="flex items-start gap-3 p-4 bg-base-200 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <div>
+                    <h4 class="font-semibold">Attendees</h4>
+                    <p class="text-sm text-base-content/70">{{ hangout()!.attendees.length }} / {{ hangout()!.capacity }} people</p>
+                    <!-- <div class="progress progress-primary w-full mt-2" [value]="(hangout()!.attendees.length / hangout()!.capacity) * 100" max="100"></div> -->
+                  </div>
+                </div>
+
+                <!-- Purpose -->
+                <div class="flex items-start gap-3 p-4 bg-base-200 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <div>
+                    <h4 class="font-semibold">Purpose</h4>
+                    <p class="text-sm text-base-content/70">{{ hangout()!.purpose }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Organizer Info -->
+              <div class="border-t pt-6">
+                <h3 class="text-xl font-semibold mb-4">Organized by</h3>
+                <div class="flex items-center gap-4">
+                  <div class="avatar placeholder">
+                    <div class="bg-primary text-primary-content rounded-full w-12">
+                      <span class="text-lg font-bold">{{ hangout()!.createdBy.name.charAt(0).toUpperCase() }}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 class="font-semibold">{{ hangout()!.createdBy.name }}</h4>
+                    <p class="text-sm text-base-content/70">{{ hangout()!.createdBy.email }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="lg:col-span-1">
+          <!-- Action Card -->
+          <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+              <h3 class="card-title mb-4">Join this hangout</h3>
+              
+              <!-- Blast Button -->
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-sm">Show your interest</span>
+                <button 
+                  class="btn btn-ghost btn-sm"
+                  [class.text-orange-600]="hangout()!.userHasBlasted"
+                  (click)="toggleBlast()"
+                  [disabled]="!isAuthenticated"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  {{ hangout()!.blasts }} Blasts
+                </button>
+              </div>
+
+              <!-- Join/Leave Button -->
+              @if (isAuthenticated) {
+                @if (isUserJoined()) {
+                  <button 
+                    class="btn btn-outline w-full"
+                    (click)="leaveHangout()"
+                    [class.loading]="actionLoading()"
+                    [disabled]="actionLoading()"
+                  >
+                    Leave Hangout
+                  </button>
+                } @else {
+                  <button 
+                    class="btn btn-primary w-full"
+                    (click)="joinHangout()"
+                    [class.loading]="actionLoading()"
+                    [disabled]="actionLoading() || hangout()!.attendees.length >= hangout()!.capacity"
+                  >
+                    @if (hangout()!.attendees.length >= hangout()!.capacity) {
+                      Hangout Full
+                    } @else {
+                      Join Hangout
+                    }
+                  </button>
+                }
+              } @else {
+                <a routerLink="/auth/login" class="btn btn-primary w-full">
+                  Login to Join
+                </a>
+              }
+
+              <!-- Capacity Warning -->
+              @if (hangout()!.attendees.length >= hangout()!.capacity) {
+                <div class="alert alert-warning mt-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span class="text-sm">This hangout is at full capacity</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Attendees Card -->
+          @if (hangout()!.attendees.length > 0) {
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body">
+                <h3 class="card-title mb-4">Attendees ({{ hangout()!.attendees.length }})</h3>
+                <div class="space-y-3">
+                  @for (attendee of hangout()!.attendees; track attendee._id) {
+                    <div class="flex items-center gap-3">
+                      <div class="avatar placeholder">
+                        <div class="bg-neutral-focus text-neutral-content rounded-full w-8">
+                          <span class="text-xs">{{ attendee.name.charAt(0).toUpperCase() }}</span>
+                        </div>
+                      </div>
+                      <span class="text-sm">{{ attendee.name }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>
