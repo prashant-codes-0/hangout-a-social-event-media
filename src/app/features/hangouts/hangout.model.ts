@@ -30,6 +30,8 @@ export interface Hangout {
   blastedBy: User[];
   userHasBlasted?: boolean;
   userHasRequested?: boolean; // Flag to indicate if current user has requested to join
+  userHasJoined?: boolean; // Flag to indicate if current user has joined (is in attendees)
+  isCreator?: boolean; // Flag to indicate if current user is the creator
   pendingRequestsCount?: number; // Count of pending requests
   requestDetails?: RequestDetail[]; // Detailed request information
   createdAt: string;

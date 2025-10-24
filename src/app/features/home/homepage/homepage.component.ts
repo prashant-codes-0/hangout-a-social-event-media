@@ -108,16 +108,44 @@ export class HomepageComponent implements OnInit {
     }
 
     return hangouts.map(hangout => {
-      const userHasRequested = hangout.requestedBy?.some(user => user._id === currentUser._id) || false;
+      // Check if user is the creator
+      const isCreator = hangout.createdBy?._id === currentUser._id;
+
+      // Check if user has requested (requestedBy can be User[] or string[])
+      let userHasRequested = false;
+      if (hangout.requestedBy && Array.isArray(hangout.requestedBy)) {
+        userHasRequested = hangout.requestedBy.some(user => {
+          // Handle both User object and string ID
+          const userId = typeof user === 'string' ? user : user._id;
+          return userId === currentUser._id;
+        });
+      }
+
+      // Check if user has joined (attendees should be User[])
+      let userHasJoined = false;
+      if (hangout.attendees && Array.isArray(hangout.attendees)) {
+        userHasJoined = hangout.attendees.some(user => {
+          // Handle both User object and string ID
+          const userId = typeof user === 'string' ? user : user._id;
+          return userId === currentUser._id;
+        });
+      }
+
       console.log(`Hangout "${hangout.title}":`, {
+        createdBy: hangout.createdBy,
         requestedBy: hangout.requestedBy,
+        attendees: hangout.attendees,
         currentUserId: currentUser._id,
-        userHasRequested
+        isCreator,
+        userHasRequested,
+        userHasJoined
       });
 
       return {
         ...hangout,
-        userHasRequested
+        isCreator,
+        userHasRequested,
+        userHasJoined
       };
     });
   }
@@ -128,9 +156,23 @@ export class HomepageComponent implements OnInit {
     return hangout?.userHasRequested || false;
   }
 
+  // Check if current user has joined this hangout
+  hasUserJoined(hangoutId: string): boolean {
+    const hangout = this.hangouts().find(h => h._id === hangoutId);
+    return hangout?.userHasJoined || false;
+  }
+
+  // Get user status for a hangout
+  getUserStatus(hangout: Hangout): 'creator' | 'joined' | 'requested' | 'none' {
+    if (hangout.isCreator) return 'creator';
+    if (hangout.userHasJoined) return 'joined';
+    if (hangout.userHasRequested) return 'requested';
+    return 'none';
+  }
+
   joinHangout(hangout: Hangout) {
     console.log('🎯 Join hangout clicked for:', hangout.title);
-    console.log('Hangout userHasRequested:', hangout.userHasRequested);
+    console.log('User status:', this.getUserStatus(hangout));
     console.log('Is authenticated:', this.authService.isAuthenticated());
 
     if (!this.authService.isAuthenticated()) {
@@ -138,7 +180,18 @@ export class HomepageComponent implements OnInit {
       return;
     }
 
-    // Check if user has already requested to join this hangout
+    // Check if user is the creator
+    if (hangout.isCreator) {
+      console.log('❌ User is the creator of this hangout');
+      return;
+    }
+
+    // Check if user has already joined or requested
+    if (hangout.userHasJoined) {
+      console.log('❌ User has already joined this hangout');
+      return;
+    }
+
     if (hangout.userHasRequested) {
       console.log('❌ User has already requested to join this hangout');
       return;
@@ -149,15 +202,50 @@ export class HomepageComponent implements OnInit {
       next: (response) => {
         console.log('Join hangout response:', response);
 
-        // The API returns a join request object, not the updated hangout
-        // So we need to reload the hangouts to get the updated data
         if (response.success) {
-          console.log('Successfully joined hangout, reloading hangouts list');
+          console.log('Successfully requested to join hangout, reloading hangouts list');
           this.loadHangouts();
         }
       },
       error: (err) => {
         console.error('Error joining hangout:', err);
+      }
+    });
+  }
+
+  leaveHangout(hangout: Hangout) {
+    console.log('🚪 Leave hangout clicked for:', hangout.title);
+    console.log('User status:', this.getUserStatus(hangout));
+
+    if (!this.authService.isAuthenticated()) {
+      console.log('❌ User not authenticated');
+      return;
+    }
+
+    // Check if user is the creator
+    if (hangout.isCreator) {
+      console.log('❌ User is the creator of this hangout and cannot leave');
+      return;
+    }
+
+    // Check if user has actually joined
+    if (!hangout.userHasJoined) {
+      console.log('❌ User has not joined this hangout');
+      return;
+    }
+
+    console.log('✅ Making leave request...');
+    this.hangoutService.leaveHangout(hangout._id).subscribe({
+      next: (response) => {
+        console.log('Leave hangout response:', response);
+
+        if (response.success) {
+          console.log('Successfully left hangout, reloading hangouts list');
+          this.loadHangouts();
+        }
+      },
+      error: (err) => {
+        console.error('Error leaving hangout:', err);
       }
     });
   }
