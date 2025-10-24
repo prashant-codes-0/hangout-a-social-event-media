@@ -31,7 +31,7 @@ export class AuthService {
       .pipe(
         tap(response => {
           if (response.success) {
-            this.setCurrentUser(response.data.user, response.data.token);
+            this.setCurrentUser(response.data.user, response.data.access_token);
           }
         })
       );

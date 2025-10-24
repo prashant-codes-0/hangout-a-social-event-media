@@ -79,12 +79,13 @@ export class HomepageComponent implements OnInit {
     }
 
     this.hangoutService.toggleBlast(hangout._id).subscribe({
-      next: (updatedHangout) => {
-        // Update the hangout in the list
-        const updatedHangouts = this.hangouts().map(h =>
-          h._id === hangout._id ? updatedHangout : h
-        );
-        this.hangouts.set(updatedHangouts);
+      next: (response) => {
+        console.log('Toggle blast response:', response);
+
+        // Reload hangouts to get updated data
+        if (response.success) {
+          this.loadHangouts();
+        }
       },
       error: (err) => {
         console.error('Error toggling blast:', err);
@@ -98,12 +99,15 @@ export class HomepageComponent implements OnInit {
     }
 
     this.hangoutService.joinHangout(hangout._id).subscribe({
-      next: (updatedHangout) => {
-        // Update the hangout in the list
-        const updatedHangouts = this.hangouts().map(h =>
-          h._id === hangout._id ? updatedHangout : h
-        );
-        this.hangouts.set(updatedHangouts);
+      next: (response) => {
+        console.log('Join hangout response:', response);
+
+        // The API returns a join request object, not the updated hangout
+        // So we need to reload the hangouts to get the updated data
+        if (response.success) {
+          console.log('Successfully joined hangout, reloading hangouts list');
+          this.loadHangouts();
+        }
       },
       error: (err) => {
         console.error('Error joining hangout:', err);

@@ -9,7 +9,7 @@ export interface AuthUser {
 export interface AuthResponse {
   success: boolean;
   data: {
-    token: string;
+    access_token: string;
     user: AuthUser;
   };
   message: string;
