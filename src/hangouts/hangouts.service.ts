@@ -372,8 +372,48 @@ export class HangoutsService {
       .find({ createdBy: userId })
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
+      .populate('requestedBy', 'name email role verified')
       .sort({ createdAt: -1 })
       .exec();
+  }
+
+  async getMyHangoutsWithRequests(userId: string) {
+    const hangouts = await this.hangoutModel
+      .find({ createdBy: userId })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email role verified')
+      .populate('requestedBy', 'name email role verified')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    // Transform data to include detailed request information
+    return hangouts.map(hangout => {
+      const hangoutObj = hangout.toObject();
+      return {
+        ...hangoutObj,
+        stats: {
+          totalAttendees: hangout.attendees.length,
+          pendingRequests: hangout.requestedBy.length,
+          availableSpots: hangout.capacity - hangout.attendees.length,
+          isFull: hangout.attendees.length >= hangout.capacity
+        },
+        requestDetails: hangout.requestedBy.map((user: any) => ({
+          userId: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          verified: user.verified,
+          requestedAt: new Date() // Could be enhanced with actual request timestamps
+        })),
+        attendeeDetails: hangout.attendees.map((user: any) => ({
+          userId: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          verified: user.verified
+        }))
+      };
+    });
   }
 
   async getHangoutsByUser(userId: string) {
@@ -450,6 +490,74 @@ export class HangoutsService {
       .populate('requestedBy', 'name email')
       .sort({ createdAt: -1 }) // Sort by most recent requests first
       .exec();
+  }
+
+  async getMyHangoutRequests(userId: string) {
+    // Get hangouts created by the user that have pending requests
+    const hangouts = await this.hangoutModel
+      .find({
+        createdBy: userId,
+        requestedBy: { $exists: true, $not: { $size: 0 } } // Only hangouts with pending requests
+      })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email')
+      .populate('requestedBy', 'name email role verified') // Include more user details
+      .sort({ createdAt: -1 })
+      .exec();
+
+    // Transform the data to show request details more clearly
+    return hangouts.map(hangout => {
+      const hangoutObj = hangout.toObject();
+      return {
+        ...hangoutObj,
+        pendingRequestsCount: hangout.requestedBy.length,
+        requestDetails: hangout.requestedBy.map((user: any) => ({
+          userId: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          verified: user.verified,
+          requestedAt: new Date() // Placeholder - could be enhanced with actual request timestamps
+        }))
+      };
+    });
+  }
+
+  async getMyRequestsCount(userId: string) {
+    const result = await this.hangoutModel.aggregate([
+      {
+        $match: {
+          createdBy: userId as any,
+          requestedBy: { $exists: true, $not: { $size: 0 } }
+        }
+      },
+      {
+        $project: {
+          hangoutTitle: '$title',
+          requestCount: { $size: '$requestedBy' }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRequests: { $sum: '$requestCount' },
+          hangoutsWithRequests: { $sum: 1 },
+          details: {
+            $push: {
+              hangoutId: '$_id',
+              hangoutTitle: '$hangoutTitle',
+              requestCount: '$requestCount'
+            }
+          }
+        }
+      }
+    ]);
+
+    return result[0] || {
+      totalRequests: 0,
+      hangoutsWithRequests: 0,
+      details: []
+    };
   }
 
   async getStats() {

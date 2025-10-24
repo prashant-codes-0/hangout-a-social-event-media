@@ -78,6 +78,60 @@ export class HangoutsController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Get('my-hangouts-detailed')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get detailed view of hangouts created by current user with request and attendee information' })
+  @ApiResponse({
+    status: 200,
+    description: 'Detailed list of hangouts with request and attendee information',
+    schema: {
+      example: {
+        success: true,
+        data: [
+          {
+            _id: '507f1f77bcf86cd799439011',
+            title: 'Networking Night',
+            description: 'Amazing networking event',
+            purpose: 'Networking',
+            place: 'Downtown Hotel',
+            time: '2024-12-25T19:00:00Z',
+            capacity: 20,
+            stats: {
+              totalAttendees: 5,
+              pendingRequests: 3,
+              availableSpots: 15,
+              isFull: false
+            },
+            requestDetails: [
+              {
+                userId: 'user2',
+                name: 'Jane Smith',
+                email: 'jane@example.com',
+                role: 'user',
+                verified: true,
+                requestedAt: '2024-12-20T10:00:00Z'
+              }
+            ],
+            attendeeDetails: [
+              {
+                userId: 'user1',
+                name: 'John Doe',
+                email: 'john@example.com',
+                role: 'user',
+                verified: true
+              }
+            ]
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getMyHangoutsDetailed(@Request() req) {
+    return this.hangoutsService.getMyHangoutsWithRequests(req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Get('joined-hangouts')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get hangouts that the current user has joined (not created)' })
@@ -103,6 +157,91 @@ export class HangoutsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getRequestedHangouts(@Request() req) {
     return this.hangoutsService.getRequestedHangouts(req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('my-hangout-requests')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all join requests for hangouts created by the current user' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of hangouts created by user with pending join requests and requester details',
+    schema: {
+      example: {
+        success: true,
+        data: [
+          {
+            _id: '507f1f77bcf86cd799439011',
+            title: 'Networking Night',
+            description: 'Amazing networking event',
+            purpose: 'Networking',
+            place: 'Downtown Hotel',
+            time: '2024-12-25T19:00:00Z',
+            capacity: 20,
+            attendees: [
+              { _id: 'user1', name: 'John Doe', email: 'john@example.com' }
+            ],
+            pendingRequestsCount: 2,
+            requestDetails: [
+              {
+                userId: 'user2',
+                name: 'Jane Smith',
+                email: 'jane@example.com',
+                role: 'user',
+                verified: true,
+                requestedAt: '2024-12-20T10:00:00Z'
+              },
+              {
+                userId: 'user3',
+                name: 'Bob Wilson',
+                email: 'bob@example.com',
+                role: 'user',
+                verified: false,
+                requestedAt: '2024-12-20T11:00:00Z'
+              }
+            ]
+          }
+        ]
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getMyHangoutRequests(@Request() req) {
+    return this.hangoutsService.getMyHangoutRequests(req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('my-requests-count')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get count of pending join requests for current user\'s hangouts' })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary of pending requests',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          totalRequests: 5,
+          hangoutsWithRequests: 3,
+          details: [
+            {
+              hangoutId: '507f1f77bcf86cd799439011',
+              hangoutTitle: 'Networking Night',
+              requestCount: 2
+            },
+            {
+              hangoutId: '507f1f77bcf86cd799439012',
+              hangoutTitle: 'Coffee Meetup',
+              requestCount: 3
+            }
+          ]
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getMyRequestsCount(@Request() req) {
+    return this.hangoutsService.getMyRequestsCount(req.user.id);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
