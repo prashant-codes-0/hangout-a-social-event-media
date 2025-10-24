@@ -17,8 +17,10 @@ export interface Hangout {
   blasts: number;
   createdBy: User;
   attendees: User[];
+  requestedBy: User[]; // Users who have requested to join
   blastedBy: User[];
   userHasBlasted?: boolean;
+  userHasRequested?: boolean; // Flag to indicate if current user has requested to join
   createdAt: string;
   updatedAt: string;
 }

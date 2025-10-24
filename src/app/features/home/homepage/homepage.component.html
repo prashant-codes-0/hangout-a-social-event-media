@@ -184,9 +184,18 @@
 
             <!-- Join Button -->
             @if (authService.isAuthenticated()) {
-            <button class="btn btn-primary btn-sm" (click)="joinHangout(hangout)">
-              Join
-            </button>
+              @if (hangout.userHasRequested) {
+                <button class="btn btn-secondary btn-sm" disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Requested
+                </button>
+              } @else {
+                <button class="btn btn-primary btn-sm" (click)="joinHangout(hangout)">
+                  Join
+                </button>
+              }
             } @else {
             <a routerLink="/auth/login" class="btn btn-primary btn-sm">
               Login to Join

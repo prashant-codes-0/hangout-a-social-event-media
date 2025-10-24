@@ -49,12 +49,28 @@ export class AuthService {
     return localStorage.getItem('token');
   }
 
-  private setCurrentUser(user: AuthUser, token: string): void {
+  private setCurrentUser(user: any, token: string): void {
+    console.log('💾 setCurrentUser called');
+    console.log('User to store:', user);
+    console.log('Token to store:', token);
+    
+    // Normalize user object to use _id consistently
+    const normalizedUser: AuthUser = {
+      _id: user._id || user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      verified: user.verified
+    };
+    
+    console.log('Normalized user:', normalizedUser);
+    
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    this.currentUserSubject.next(user);
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
+    
+    this.currentUserSubject.next(normalizedUser);
     this.isAuthenticated.set(true);
-    this.currentUser.set(user);
+    this.currentUser.set(normalizedUser);
   }
 
   private loadUserFromStorage(): void {
