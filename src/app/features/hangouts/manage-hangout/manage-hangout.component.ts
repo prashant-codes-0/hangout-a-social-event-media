@@ -48,12 +48,40 @@ export class ManageHangoutComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
 
-    this.hangoutService.getMyHangoutRequests().subscribe({
+    // Load all my hangouts first
+    this.hangoutService.getMyHangouts().subscribe({
       next: (response) => {
         if (response.success) {
-          this.myHangouts.set(response.data);
+          // Then get the detailed request data
+          this.hangoutService.getMyHangoutRequests().subscribe({
+            next: (requestResponse) => {
+              if (requestResponse.success) {
+                // Merge the request details into the hangouts
+                const hangoutsWithRequests = response.data.map(hangout => {
+                  const hangoutWithRequests = requestResponse.data.find(h => h._id === hangout._id);
+                  return {
+                    ...hangout,
+                    requestDetails: hangoutWithRequests?.requestDetails || [],
+                    pendingRequestsCount: hangoutWithRequests?.pendingRequestsCount || 0
+                  };
+                });
+                this.myHangouts.set(hangoutsWithRequests);
+              } else {
+                // If request details fail, just show hangouts without request details
+                this.myHangouts.set(response.data);
+              }
+              this.loading.set(false);
+            },
+            error: (err) => {
+              // If request details fail, just show hangouts without request details
+              console.warn('Failed to load request details:', err);
+              this.myHangouts.set(response.data);
+              this.loading.set(false);
+            }
+          });
+        } else {
+          this.loading.set(false);
         }
-        this.loading.set(false);
       },
       error: (err) => {
         this.error.set('Failed to load your hangouts. Please try again.');
@@ -61,6 +89,19 @@ export class ManageHangoutComponent implements OnInit {
         console.error('Error loading my hangouts:', err);
       }
     });
+  }
+
+  refreshSelectedHangout() {
+    const currentSelected = this.selectedHangout();
+    if (currentSelected) {
+      // Find the updated hangout data and refresh the selection
+      setTimeout(() => {
+        const updatedHangout = this.myHangouts().find(h => h._id === currentSelected._id);
+        if (updatedHangout) {
+          this.selectedHangout.set(updatedHangout);
+        }
+      }, 100); // Small delay to ensure data is loaded
+    }
   }
 
   selectHangout(hangout: Hangout) {
@@ -77,8 +118,8 @@ export class ManageHangoutComponent implements OnInit {
         console.log('Request approved:', response);
         // Reload hangouts to get updated data
         this.loadMyHangouts();
-        // Clear selection to refresh the view
-        this.selectedHangout.set(null);
+        // Keep the current hangout selected and refresh its data
+        this.refreshSelectedHangout();
       },
       error: (err) => {
         console.error('Error approving request:', err);
@@ -96,8 +137,8 @@ export class ManageHangoutComponent implements OnInit {
         console.log('Request rejected:', response);
         // Reload hangouts to get updated data
         this.loadMyHangouts();
-        // Clear selection to refresh the view
-        this.selectedHangout.set(null);
+        // Keep the current hangout selected and refresh its data
+        this.refreshSelectedHangout();
       },
       error: (err) => {
         console.error('Error rejecting request:', err);

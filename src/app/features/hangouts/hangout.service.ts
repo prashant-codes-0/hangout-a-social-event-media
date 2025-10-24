@@ -86,6 +86,11 @@ export class HangoutService {
         return this.http.get<{ success: boolean; data: Hangout[] }>(`${this.apiUrl}/my-hangout-requests`);
     }
 
+    // Get all my hangouts for management (including those without pending requests)
+    getAllMyHangoutsForManagement(): Observable<{ success: boolean; data: Hangout[] }> {
+        return this.http.get<{ success: boolean; data: Hangout[] }>(`${this.apiUrl}/my-hangouts-management`);
+    }
+
     // Get join requests for a specific hangout
     // getHangoutRequests(hangoutId: string): Observable<{ success: boolean; data: JoinRequest[] }> {
     //     return this.http.get<{ success: boolean; data: JoinRequest[] }>(`${this.apiUrl}/${hangoutId}/requests`);
