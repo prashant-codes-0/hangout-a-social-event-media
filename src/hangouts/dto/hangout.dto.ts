@@ -10,6 +10,13 @@ export class CreateHangoutDto {
   title: string;
 
   @ApiProperty({
+    description: 'Detailed description of the hangout',
+    example: 'Join us for an amazing networking event where professionals from various industries come together to share ideas, make connections, and have a great time!',
+  })
+  @IsString()
+  description: string;
+
+  @ApiProperty({
     description: 'Purpose or category of the hangout',
     example: 'Professional networking',
   })
@@ -76,6 +83,14 @@ export class UpdateHangoutDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detailed description of the hangout',
+    example: 'Updated description with more details about the networking event.',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({
     description: 'Purpose or category of the hangout',

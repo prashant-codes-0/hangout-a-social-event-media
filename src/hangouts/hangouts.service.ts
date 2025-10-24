@@ -55,18 +55,27 @@ export class HangoutsService {
       .find(query)
       .populate('createdBy', 'name email')
       .populate('blastedBy', 'name email')
+      .populate('requestedBy', 'name email')
       .exec();
 
-    // Add userHasBlasted field for authenticated users
+    // Add user status fields for authenticated users
     if (userId) {
       return hangouts.map(hangout => {
         const hangoutObj = hangout.toObject();
         const userHasBlasted = hangout.blastedBy.some(
           (blastedUser: any) => blastedUser._id.toString() === userId
         );
+        const userHasRequested = hangout.requestedBy.some(
+          (requestedUser: any) => requestedUser._id.toString() === userId
+        );
+        const userIsAttending = hangout.attendees.some(
+          (attendee: any) => attendee._id.toString() === userId
+        );
         return {
           ...hangoutObj,
           userHasBlasted,
+          userHasRequested,
+          userIsAttending,
         };
       });
     }
@@ -100,18 +109,27 @@ export class HangoutsService {
       .find(query)
       .populate('createdBy', 'name email')
       .populate('blastedBy', 'name email')
+      .populate('requestedBy', 'name email')
       .exec();
 
-    // Add userHasBlasted field for authenticated users
+    // Add user status fields for authenticated users
     if (userId) {
       return hangouts.map(hangout => {
         const hangoutObj = hangout.toObject();
         const userHasBlasted = hangout.blastedBy.some(
           (blastedUser: any) => blastedUser._id.toString() === userId
         );
+        const userHasRequested = hangout.requestedBy.some(
+          (requestedUser: any) => requestedUser._id.toString() === userId
+        );
+        const userIsAttending = hangout.attendees.some(
+          (attendee: any) => attendee._id.toString() === userId
+        );
         return {
           ...hangoutObj,
           userHasBlasted,
+          userHasRequested,
+          userIsAttending,
         };
       });
     }
@@ -125,13 +143,14 @@ export class HangoutsService {
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
       .populate('blastedBy', 'name email')
+      .populate('requestedBy', 'name email')
       .exec();
 
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
 
-    // Get join requests for this hangout
+    // Get join requests for this hangout (legacy support)
     const joinRequests = await this.joinRequestModel
       .find({ hangoutId: id })
       .populate('userId', 'name email')
@@ -141,16 +160,27 @@ export class HangoutsService {
 
     // Check if current user has blasted this hangout
     let userHasBlasted = false;
+    let userHasRequested = false;
+    let userIsAttending = false;
+
     if (userId) {
       userHasBlasted = hangout.blastedBy.some(
         (blastedUser: any) => blastedUser._id.toString() === userId
+      );
+      userHasRequested = hangout.requestedBy.some(
+        (requestedUser: any) => requestedUser._id.toString() === userId
+      );
+      userIsAttending = hangout.attendees.some(
+        (attendee: any) => attendee._id.toString() === userId
       );
     }
 
     return {
       ...hangoutObj,
-      joinRequests,
+      joinRequests, // Legacy support
       userHasBlasted,
+      userHasRequested,
+      userIsAttending,
     };
   }
 
@@ -199,14 +229,14 @@ export class HangoutsService {
       throw new NotFoundException('Hangout not found');
     }
 
-    // Check if user already has a request
-    const existingRequest = await this.joinRequestModel.findOne({
-      hangoutId,
-      userId,
-    });
+    // Check if user is already an attendee
+    if (hangout.attendees.includes(userId as any)) {
+      throw new BadRequestException('You are already attending this hangout');
+    }
 
-    if (existingRequest) {
-      throw new BadRequestException('You already have a request for this hangout');
+    // Check if user already has a pending request
+    if (hangout.requestedBy.includes(userId as any)) {
+      throw new BadRequestException('You already have a pending request for this hangout');
     }
 
     // Check if hangout is full
@@ -214,12 +244,16 @@ export class HangoutsService {
       throw new BadRequestException('This hangout is full');
     }
 
-    const joinRequest = new this.joinRequestModel({
+    // Add user to requestedBy array
+    hangout.requestedBy.push(userId as any);
+    await hangout.save();
+
+    return {
+      message: 'Join request sent successfully',
       hangoutId,
       userId,
-    });
-
-    return joinRequest.save();
+      status: 'pending'
+    };
   }
 
   async handleJoinRequest(requestId: string, status: JoinRequestStatus, userId: string, isAdmin: boolean = false) {
@@ -254,6 +288,51 @@ export class HangoutsService {
     }
 
     return joinRequest;
+  }
+
+  async handleJoinRequestNew(hangoutId: string, requestedUserId: string, action: 'approve' | 'reject', currentUserId: string, isAdmin: boolean = false) {
+    const hangout = await this.hangoutModel.findById(hangoutId);
+
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+
+    // Admins can handle any join request, regular users can only handle requests for their own hangouts
+    if (!isAdmin && hangout.createdBy.toString() !== currentUserId) {
+      throw new ForbiddenException('You can only handle requests for your own hangouts');
+    }
+
+    // Check if user actually has a pending request
+    if (!hangout.requestedBy.includes(requestedUserId as any)) {
+      throw new BadRequestException('No pending request found for this user');
+    }
+
+    // Remove user from requestedBy array
+    hangout.requestedBy = hangout.requestedBy.filter(
+      id => id.toString() !== requestedUserId
+    );
+
+    if (action === 'approve') {
+      // Check if hangout is full
+      if (hangout.attendees.length >= hangout.capacity) {
+        throw new BadRequestException('This hangout is full');
+      }
+
+      // Add user to attendees if not already there
+      if (!hangout.attendees.includes(requestedUserId as any)) {
+        hangout.attendees.push(requestedUserId as any);
+      }
+    }
+
+    await hangout.save();
+
+    return {
+      message: `Join request ${action}d successfully`,
+      hangoutId,
+      requestedUserId,
+      action,
+      status: action === 'approve' ? 'approved' : 'rejected'
+    };
   }
 
   async toggleBlast(hangoutId: string, userId: string) {
@@ -357,6 +436,19 @@ export class HangoutsService {
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
       .sort({ time: 1 }) // Sort by upcoming events first
+      .exec();
+  }
+
+  async getRequestedHangouts(userId: string) {
+    return this.hangoutModel
+      .find({
+        requestedBy: userId, // Hangouts where user has pending requests
+        createdBy: { $ne: userId } // Exclude hangouts created by the user
+      })
+      .populate('createdBy', 'name email')
+      .populate('attendees', 'name email')
+      .populate('requestedBy', 'name email')
+      .sort({ createdAt: -1 }) // Sort by most recent requests first
       .exec();
   }
 

@@ -91,6 +91,20 @@ export class HangoutsController {
     return this.hangoutsService.getJoinedHangouts(req.user.id);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('requested-hangouts')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get hangouts that the current user has requested to join (pending requests)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of hangouts the user has requested to join',
+    type: [HangoutResponseDto]
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getRequestedHangouts(@Request() req) {
+    return this.hangoutsService.getRequestedHangouts(req.user.id);
+  }
+
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get('by-user/:userId')
@@ -214,7 +228,7 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Patch('requests/:requestId')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Handle join request (organizer or admin)' })
+  @ApiOperation({ summary: 'Handle join request (organizer or admin) - Legacy endpoint' })
   @ApiParam({ name: 'requestId', description: 'Join request ID' })
   @ApiBody({
     schema: {
@@ -239,6 +253,38 @@ export class HangoutsController {
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
     return this.hangoutsService.handleJoinRequest(requestId, status, req.user.id, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch(':hangoutId/requests/:userId')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Handle join request for a specific user (organizer or admin)' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiParam({ name: 'userId', description: 'User ID who requested to join' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['approve', 'reject'],
+          example: 'approve'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Join request successfully handled' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'You can only handle requests for your own hangouts (unless you are an admin)' })
+  @ApiResponse({ status: 404, description: 'Hangout or request not found' })
+  handleJoinRequestNew(
+    @Param('hangoutId') hangoutId: string,
+    @Param('userId') userId: string,
+    @Body('action') action: 'approve' | 'reject',
+    @Request() req,
+  ) {
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.hangoutsService.handleJoinRequestNew(hangoutId, userId, action, req.user.id, isAdmin);
   }
 
   @UseGuards(AuthGuard('jwt'))

@@ -7,6 +7,9 @@ export class Hangout extends Document {
   title: string;
 
   @Prop({ required: true })
+  description: string;
+
+  @Prop({ required: true })
   purpose: string;
 
   @Prop({ required: true })
@@ -23,6 +26,9 @@ export class Hangout extends Document {
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
   attendees: Types.ObjectId[];
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  requestedBy: Types.ObjectId[];
 
   @Prop({ default: 0 })
   blasts: number;
