@@ -40,5 +40,10 @@ export const hangoutRoutes: Routes = [
     loadComponent: () => import('./list/hangout-list.component').then(c => c.HangoutListComponent),
     canActivate: [authGuard],
     data: { filter: 'joined' }
+  },
+  {
+    path: 'manage',
+    loadComponent: () => import('./manage-hangout/manage-hangout.component').then(c => c.ManageHangoutComponent),
+    canActivate: [authGuard]
   }
 ];

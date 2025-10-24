@@ -1,0 +1,20 @@
+/* Custom styles for manage hangout component */
+.card {
+  @apply transition-all duration-200;
+}
+
+.card:hover {
+  @apply shadow-2xl;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .grid-cols-1.lg\\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .lg\\:col-span-1,
+  .lg\\:col-span-2 {
+    grid-column: span 1;
+  }
+}

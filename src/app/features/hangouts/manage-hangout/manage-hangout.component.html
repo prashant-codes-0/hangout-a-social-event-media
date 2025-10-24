@@ -1,0 +1,181 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-8">
+    <h1 class="text-3xl font-bold">Manage My Hangouts</h1>
+    <a routerLink="/hangouts/create" class="btn btn-primary">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+      Create New Hangout
+    </a>
+  </div>
+
+  @if (error()) {
+    <div class="alert alert-error mb-6">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- My Hangouts List -->
+    <div class="lg:col-span-1">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <h2 class="card-title">My Hangouts</h2>
+          
+          @if (loading()) {
+            <div class="flex justify-center py-8">
+              <span class="loading loading-spinner loading-lg"></span>
+            </div>
+          } @else if (myHangouts().length === 0) {
+            <div class="text-center py-8">
+              <p class="text-gray-500">You haven't created any hangouts yet.</p>
+              <a routerLink="/hangouts/create" class="btn btn-primary btn-sm mt-4">Create Your First Hangout</a>
+            </div>
+          } @else {
+            <div class="space-y-3">
+              @for (hangout of myHangouts(); track hangout._id) {
+                <div 
+                  class="p-4 border rounded-lg cursor-pointer hover:bg-base-200 transition-colors"
+                  [class.bg-primary]="selectedHangout()?._id === hangout._id"
+                  [class.text-primary-content]="selectedHangout()?._id === hangout._id"
+                  (click)="selectHangout(hangout)"
+                >
+                  <h3 class="font-semibold">{{ hangout.title }}</h3>
+                  <p class="text-sm opacity-70">{{ formatDate(hangout.time) }}</p>
+                  <div class="flex items-center gap-2 mt-2">
+                    <span class="badge badge-sm">{{ hangout.pendingRequestsCount || 0 }} requests</span>
+                    <span class="badge badge-sm">{{ hangout.attendees.length || 0 }}/{{ hangout.capacity }} attending</span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Join Requests -->
+    <div class="lg:col-span-2">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          @if (!selectedHangout()) {
+            <div class="text-center py-12">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <h3 class="text-xl font-semibold mb-2">Select a Hangout</h3>
+              <p class="text-gray-500">Choose a hangout from the left to view and manage join requests.</p>
+            </div>
+          } @else {
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="card-title">
+                  Join Requests for "{{ selectedHangout()?.title }}"
+                </h2>
+                <div class="badge badge-primary">
+                  {{ filteredJoinRequests().length }} request(s)
+                </div>
+              </div>
+              
+              <!-- Search Bar -->
+              @if (selectedHangout()?.requestDetails && selectedHangout()?.requestDetails!.length > 0) {
+                <div class="form-control mb-4">
+                  <div class="input-group">
+                    <input 
+                      type="text" 
+                      placeholder="Search by name or email..." 
+                      class="input input-bordered flex-1"
+                      [(ngModel)]="searchTerm"
+                      (ngModelChange)="searchTerm.set($event)"
+                    />
+                    <button class="btn btn-square btn-outline">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              }
+              
+              @if (loading()) {
+                <div class="flex justify-center py-8">
+                  <span class="loading loading-spinner loading-lg"></span>
+                </div>
+              } @else if (filteredJoinRequests().length === 0 && selectedHangout()?.requestDetails && selectedHangout()?.requestDetails!.length > 0) {
+                <div class="text-center py-8">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <h3 class="text-xl font-semibold mb-2">No Results Found</h3>
+                  <p class="text-gray-500">No requests match your search criteria.</p>
+                  <button class="btn btn-ghost btn-sm mt-2" (click)="searchTerm.set('')">Clear Search</button>
+                </div>
+              } @else if (!selectedHangout()?.requestDetails || selectedHangout()?.requestDetails!.length === 0) {
+                <div class="text-center py-8">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                  <h3 class="text-xl font-semibold mb-2">No Join Requests</h3>
+                  <p class="text-gray-500">No one has requested to join this hangout yet.</p>
+                </div>
+              } @else {
+                <div class="space-y-4">
+                  @for (request of filteredJoinRequests(); track request.userId) {
+                    <div class="card bg-base-200">
+                      <div class="card-body p-4">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-3">
+                            <div class="avatar placeholder">
+                              <div class="bg-neutral-focus text-neutral-content rounded-full w-12">
+                                <span class="text-lg">{{ request.name.charAt(0).toUpperCase() }}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <h3 class="font-semibold">{{ request.name }}</h3>
+                              <p class="text-sm opacity-70">{{ request.email }}</p>
+                              <p class="text-xs opacity-60">Requested {{ formatDate(request.requestedAt) }}</p>
+                              <div class="flex items-center gap-2 mt-1">
+                                <span class="badge badge-xs">{{ request.role }}</span>
+                                @if (request.verified) {
+                                  <span class="badge badge-xs badge-success">Verified</span>
+                                }
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div class="flex gap-2">
+                            <button 
+                              class="btn btn-success btn-sm"
+                              (click)="approveRequest(request)"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Approve
+                            </button>
+                            <button 
+                              class="btn btn-error btn-sm"
+                              (click)="rejectRequest(request)"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

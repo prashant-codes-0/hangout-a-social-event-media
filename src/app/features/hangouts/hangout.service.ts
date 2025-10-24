@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Hangout, CreateHangoutDto, HangoutFilters } from './hangout.model';
+import { Hangout, CreateHangoutDto, HangoutFilters,  } from './hangout.model';
 
 @Injectable({
     providedIn: 'root'
@@ -64,7 +64,7 @@ export class HangoutService {
 
     searchHangouts(query: string, filters?: HangoutFilters): Observable<{ success: boolean; data: Hangout[] }> {
         let params = new HttpParams();
-        
+
         if (query) {
             params = params.set('q', query);
         }
@@ -79,5 +79,20 @@ export class HangoutService {
         }
 
         return this.http.get<{ success: boolean; data: Hangout[] }>(`${this.apiUrl}/search`, { params });
+    }
+
+    // Get hangouts with request details for management
+    getMyHangoutRequests(): Observable<{ success: boolean; data: Hangout[] }> {
+        return this.http.get<{ success: boolean; data: Hangout[] }>(`${this.apiUrl}/my-hangout-requests`);
+    }
+
+    // Get join requests for a specific hangout
+    // getHangoutRequests(hangoutId: string): Observable<{ success: boolean; data: JoinRequest[] }> {
+    //     return this.http.get<{ success: boolean; data: JoinRequest[] }>(`${this.apiUrl}/${hangoutId}/requests`);
+    // }
+
+    // Approve or reject a join request
+    updateRequestStatus(hangoutId: string, userId: string, action: 'approve' | 'reject'): Observable<any> {
+        return this.http.patch(`${this.apiUrl}/${hangoutId}/requests/${userId}`, { action });
     }
 }

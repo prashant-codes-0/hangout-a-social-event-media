@@ -4,6 +4,15 @@ export interface User {
   email: string;
 }
 
+export interface RequestDetail {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  verified: boolean;
+  requestedAt: string;
+}
+
 export interface Hangout {
   _id: string;
   title: string;
@@ -21,6 +30,8 @@ export interface Hangout {
   blastedBy: User[];
   userHasBlasted?: boolean;
   userHasRequested?: boolean; // Flag to indicate if current user has requested to join
+  pendingRequestsCount?: number; // Count of pending requests
+  requestDetails?: RequestDetail[]; // Detailed request information
   createdAt: string;
   updatedAt: string;
 }
