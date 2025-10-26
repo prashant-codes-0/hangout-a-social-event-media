@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Hangout, CreateHangoutDto, HangoutFilters,  } from './hangout.model';
+import { Hangout, CreateHangoutDto, HangoutFilters, } from './hangout.model';
 
 @Injectable({
     providedIn: 'root'
@@ -46,8 +46,8 @@ export class HangoutService {
         return this.http.post(`${this.apiUrl}/${id}/join`, {});
     }
 
-    leaveHangout(id: string): Observable<any> {
-        return this.http.post(`${this.apiUrl}/${id}/leave`, {});
+    leaveOrCancelHangout(id: string): Observable<any> {
+        return this.http.delete(`${this.apiUrl}/${id}/leave-or-cancel`);
     }
 
     toggleBlast(id: string): Observable<any> {

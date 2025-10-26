@@ -213,9 +213,18 @@ export class HomepageComponent implements OnInit {
     });
   }
 
-  leaveHangout(hangout: Hangout) {
-    console.log('🚪 Leave hangout clicked for:', hangout.title);
+  leaveOrCancelHangout(hangout: Hangout) {
+    const action = hangout.userHasJoined ? 'leave' : 'cancel request for';
+    console.log(`🚪 ${action} hangout clicked for:`, hangout.title);
     console.log('User status:', this.getUserStatus(hangout));
+    console.log('Hangout details:', {
+      userHasJoined: hangout.userHasJoined,
+      userHasRequested: hangout.userHasRequested,
+      isCreator: hangout.isCreator,
+      attendees: hangout.attendees,
+      requestedBy: hangout.requestedBy,
+      currentUserId: this.authService.currentUser()?._id
+    });
 
     if (!this.authService.isAuthenticated()) {
       console.log('❌ User not authenticated');
@@ -224,28 +233,37 @@ export class HomepageComponent implements OnInit {
 
     // Check if user is the creator
     if (hangout.isCreator) {
-      console.log('❌ User is the creator of this hangout and cannot leave');
+      console.log('❌ User is the creator of this hangout and cannot leave/cancel');
       return;
     }
 
-    // Check if user has actually joined
-    if (!hangout.userHasJoined) {
-      console.log('❌ User has not joined this hangout');
+    // Check if user has joined or requested
+    if (!hangout.userHasJoined && !hangout.userHasRequested) {
+      console.log('❌ User has not joined or requested this hangout');
       return;
     }
 
-    console.log('✅ Making leave request...');
-    this.hangoutService.leaveHangout(hangout._id).subscribe({
+    console.log(`✅ Making ${action} request to API...`);
+    console.log('API endpoint:', `hangouts/${hangout._id}/leave-or-cancel`);
+
+    this.hangoutService.leaveOrCancelHangout(hangout._id).subscribe({
       next: (response) => {
-        console.log('Leave hangout response:', response);
+        console.log(`${action} hangout API response:`, response);
 
         if (response.success) {
-          console.log('Successfully left hangout, reloading hangouts list');
+          console.log(`✅ Successfully ${action}ed hangout, reloading hangouts list`);
           this.loadHangouts();
+        } else {
+          console.log(`❌ API returned success: false for ${action}`);
         }
       },
       error: (err) => {
-        console.error('Error leaving hangout:', err);
+        console.error(`💥 Error ${action}ing hangout:`, err);
+        console.error('Error details:', {
+          status: err.status,
+          statusText: err.statusText,
+          error: err.error
+        });
       }
     });
   }

@@ -185,7 +185,7 @@
                 @if (isUserJoined()) {
                   <button 
                     class="btn btn-outline w-full"
-                    (click)="leaveHangout()"
+                    (click)="leaveOrCancelHangout()"
                     [class.loading]="actionLoading()"
                     [disabled]="actionLoading()"
                   >

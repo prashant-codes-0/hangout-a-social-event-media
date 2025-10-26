@@ -71,22 +71,31 @@ export class HangoutDetailsComponent implements OnInit {
     });
   }
 
-  leaveHangout(): void {
+  leaveOrCancelHangout(): void {
     const hangout = this.hangout();
     if (!hangout || !this.authService.isAuthenticated()) {
       return;
     }
 
+    console.log('🚪 Leave/Cancel hangout from details page:', hangout.title);
+    console.log('Hangout details:', hangout);
+    console.log('Current user:', this.authService.currentUser());
+
     this.actionLoading.set(true);
-    this.hangoutService.leaveHangout(hangout._id).subscribe({
+    this.hangoutService.leaveOrCancelHangout(hangout._id).subscribe({
       next: (response: any) => {
+        console.log('Leave/Cancel hangout response:', response);
         if (response.success) {
           this.hangout.set(response.data || hangout);
+          console.log('✅ Successfully left/canceled hangout');
+        } else {
+          console.log('❌ API returned success: false');
         }
         this.actionLoading.set(false);
       },
       error: (err) => {
-        this.error.set(err.error?.message || 'Failed to leave hangout');
+        console.error('💥 Error leaving/canceling hangout:', err);
+        this.error.set(err.error?.message || 'Failed to leave/cancel hangout');
         this.actionLoading.set(false);
       }
     });
