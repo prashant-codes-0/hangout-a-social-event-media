@@ -467,6 +467,96 @@ export class HangoutsService {
     };
   }
 
+  async cancelJoinRequest(hangoutId: string, userId: string) {
+    const hangout = await this.hangoutModel.findById(hangoutId);
+
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+
+    // Check if user has a pending request
+    const hasRequest = hangout.requestedBy.some(
+      requesterId => requesterId.toString() === userId
+    );
+
+    if (!hasRequest) {
+      throw new BadRequestException('You do not have a pending request for this hangout');
+    }
+
+    // Remove user from requestedBy array
+    hangout.requestedBy = hangout.requestedBy.filter(
+      requesterId => requesterId.toString() !== userId
+    );
+
+    await hangout.save();
+
+    return {
+      message: 'Successfully cancelled join request',
+      hangoutId,
+      hangoutTitle: hangout.title,
+      userId,
+      action: 'cancelled'
+    };
+  }
+
+  async leaveOrCancelHangout(hangoutId: string, userId: string) {
+    const hangout = await this.hangoutModel.findById(hangoutId);
+
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+
+    const isAttendee = hangout.attendees.some(
+      attendeeId => attendeeId.toString() === userId
+    );
+    const hasRequest = hangout.requestedBy.some(
+      requesterId => requesterId.toString() === userId
+    );
+
+    if (!isAttendee && !hasRequest) {
+      throw new BadRequestException('You are not associated with this hangout');
+    }
+
+    let action = '';
+    let message = '';
+
+    // If user is an attendee, remove from attendees
+    if (isAttendee) {
+      hangout.attendees = hangout.attendees.filter(
+        attendeeId => attendeeId.toString() !== userId
+      );
+      action = 'left';
+      message = 'Successfully left the hangout';
+
+      // Also remove any legacy join requests
+      await this.joinRequestModel.deleteMany({
+        hangoutId,
+        userId,
+      });
+    }
+
+    // If user has a pending request, remove from requestedBy
+    if (hasRequest) {
+      hangout.requestedBy = hangout.requestedBy.filter(
+        requesterId => requesterId.toString() !== userId
+      );
+      action = isAttendee ? 'left_and_cancelled' : 'cancelled_request';
+      message = isAttendee ? 'Successfully left the hangout and cancelled any pending requests' : 'Successfully cancelled join request';
+    }
+
+    await hangout.save();
+
+    return {
+      message,
+      hangoutId,
+      hangoutTitle: hangout.title,
+      userId,
+      action,
+      remainingAttendees: hangout.attendees.length,
+      pendingRequests: hangout.requestedBy.length
+    };
+  }
+
   async getJoinedHangouts(userId: string) {
     return this.hangoutModel
       .find({

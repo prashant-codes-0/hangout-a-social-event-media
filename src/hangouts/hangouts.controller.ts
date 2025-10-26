@@ -36,7 +36,7 @@ import { UserRole } from '../auth/schemas/user.schema';
 export class HangoutsController {
   constructor(private readonly hangoutsService: HangoutsService) { }
 
-  @UseGuards(AuthGuard('jwt'),VerifiedUserGuard)
+  @UseGuards(AuthGuard('jwt'), VerifiedUserGuard)
   @Post()
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Create a new hangout (verified users, admins, and sponsors only)' })
@@ -477,6 +477,64 @@ export class HangoutsController {
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   leaveHangout(@Param('id') id: string, @Request() req) {
     return this.hangoutsService.leaveHangout(id, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id/cancel-request')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cancel join request for a hangout (removes from pending requests)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully cancelled join request',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          message: 'Successfully cancelled join request',
+          hangoutId: '507f1f77bcf86cd799439011',
+          hangoutTitle: 'Networking Night',
+          userId: '507f1f77bcf86cd799439012',
+          action: 'cancelled'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'You do not have a pending request for this hangout' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Hangout not found' })
+  cancelJoinRequest(@Param('id') id: string, @Request() req) {
+    return this.hangoutsService.cancelJoinRequest(id, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete(':id/leave-or-cancel')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Smart leave/cancel - removes user from hangout (attendee) or cancels join request (pending)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully processed leave/cancel request',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          message: 'Successfully cancelled join request',
+          hangoutId: '507f1f77bcf86cd799439011',
+          hangoutTitle: 'Networking Night',
+          userId: '507f1f77bcf86cd799439012',
+          action: 'cancelled_request',
+          remainingAttendees: 5,
+          pendingRequests: 2
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'You are not associated with this hangout' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Hangout not found' })
+  leaveOrCancelHangout(@Param('id') id: string, @Request() req) {
+    return this.hangoutsService.leaveOrCancelHangout(id, req.user.id);
   }
 
 }
