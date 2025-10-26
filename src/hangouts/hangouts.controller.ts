@@ -351,7 +351,7 @@ export class HangoutsController {
     return this.hangoutsService.remove(id, req.user.id, isAdmin);
   }
 
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'),VerifiedUserGuard)
   @Post(':id/join')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request to join a hangout' })

@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { User, UserRole } from './schemas/user.schema';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +13,7 @@ export class AuthService {
     @InjectModel(User.name)
     private userModel: Model<User>,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -118,16 +120,106 @@ export class AuthService {
   /**
    * Verify the user only (set verified = true) without changing role.
    */
-  async verifyUserOnly(userId: string): Promise<User> {
+  async verifyUserOnly(userId: string, otpCode: string): Promise<User> {
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    // Check if OTP is valid
+    if (!user.otpCode || user.otpCode !== otpCode) {
+      throw new BadRequestException('Invalid OTP code');
+    }
+
+    // Check if OTP is expired
+    if (!user.otpExpiry || user.otpExpiry < new Date()) {
+      throw new BadRequestException('OTP code has expired');
+    }
+
     user.verified = true;
+    user.otpCode = undefined;
+    user.otpExpiry = undefined;
     await user.save();
 
+    // Send welcome email
+    await this.emailService.sendWelcomeEmail(user.email, user.name);
+
     return user;
+  }
+
+  async sendOTP(email: string) {
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.verified) {
+      throw new BadRequestException('User is already verified');
+    }
+
+    // Generate OTP
+    const otpCode = this.emailService.generateOTP();
+    const otpExpiry = new Date();
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP expires in 10 minutes
+
+    // Save OTP to user
+    user.otpCode = otpCode;
+    user.otpExpiry = otpExpiry;
+    await user.save();
+
+    // Send OTP email
+    await this.emailService.sendOTPEmail(user.email, user.name, otpCode);
+
+    return {
+      success: true,
+      message: 'OTP sent successfully to your email',
+      data: {
+        email: user.email,
+        expiresIn: '10 minutes',
+      },
+    };
+  }
+
+  async verifyOTP(email: string, otpCode: string) {
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if OTP is valid
+    if (!user.otpCode || user.otpCode !== otpCode) {
+      throw new BadRequestException('Invalid OTP code');
+    }
+
+    // Check if OTP is expired
+    if (!user.otpExpiry || user.otpExpiry < new Date()) {
+      throw new BadRequestException('OTP code has expired');
+    }
+
+    user.verified = true;
+    user.otpCode = undefined;
+    user.otpExpiry = undefined;
+    await user.save();
+
+    // Send welcome email
+    await this.emailService.sendWelcomeEmail(user.email, user.name);
+
+    return {
+      success: true,
+      message: 'Email verified successfully',
+      data: {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        verified: user.verified,
+      },
+    };
+  }
+
+  async resendOTP(email: string) {
+    return this.sendOTP(email);
   }
 
   async getAllUsers(): Promise<User[]> {

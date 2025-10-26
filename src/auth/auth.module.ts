@@ -8,6 +8,7 @@ import { AuthController } from './auth.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
+import { EmailService } from '../common/services/email.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { LocalStrategy } from './local.strategy';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy, LocalStrategy],
+  providers: [AuthService, JwtStrategy, LocalStrategy, EmailService],
   controllers: [AuthController],
   exports: [AuthService],
 })
