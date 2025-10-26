@@ -68,4 +68,61 @@ export class ProfileService {
       memberSince: string;
     }>(`${this.apiUrl}/stats`);
   }
+
+  /**
+   * Check if current user is verified
+   */
+  isUserVerified(): boolean {
+    const currentUser = this.authService.currentUser();
+    return currentUser?.verified || false;
+  }
+
+  /**
+   * Send OTP to user's email for verification
+   */
+  sendOTP(email?: string): Observable<any> {
+    const currentUser = this.authService.currentUser();
+    if (!currentUser) {
+      throw new Error('No user logged in');
+    }
+
+    // Use provided email or current user's email
+    const emailToUse = email || currentUser.email;
+    if (!emailToUse) {
+      throw new Error('No email address available');
+    }
+
+    return this.http.post('http://localhost:3000/auth/send-otp', {
+      email: emailToUse
+    });
+  }
+
+  /**
+   * Verify OTP for email verification
+   */
+  verifyOTP(email: string, otpCode: string): Observable<any> {
+    return this.http.post('http://localhost:3000/auth/verify-otp', {
+      email,
+      otpCode
+    });
+  }
+
+  /**
+   * Request user verification
+   */
+  requestVerification(): Observable<any> {
+    const currentUser = this.authService.currentUser();
+    if (!currentUser) {
+      throw new Error('No user logged in');
+    }
+
+    // Check if user is already verified
+    if (this.isUserVerified()) {
+      throw new Error('User is already verified');
+    }
+
+    return this.http.patch('http://localhost:3000/auth/verify-only', {
+      userId: currentUser._id
+    });
+  }
 }

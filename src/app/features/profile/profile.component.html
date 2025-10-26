@@ -70,6 +70,114 @@
             </div>
           </div>
 
+          <!-- Verification Section -->
+          @if (!currentUser()?.verified) {
+            <div class="card bg-info/10 border border-info/20">
+              <div class="card-body p-4">
+                @if (!otpSent()) {
+                  <!-- Initial verification request -->
+                  <div class="flex items-start gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-info flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <div class="flex-1">
+                      <h4 class="font-semibold text-info mb-1">Verify Your Account</h4>
+                      <p class="text-sm opacity-80 mb-3">
+                        Get a verified badge to show other users that your account is authentic. 
+                        We'll send a verification code to your email address.
+                      </p>
+                      <button 
+                        class="btn btn-info btn-sm"
+                        (click)="sendOTP()"
+                        [class.loading]="otpLoading()"
+                        [disabled]="otpLoading()"
+                      >
+                        @if (otpLoading()) {
+                          <span class="loading loading-spinner loading-xs"></span>
+                          Sending Code...
+                        } @else {
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          Send Verification Code
+                        }
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <!-- OTP verification form -->
+                  <div>
+                    <h4 class="font-semibold text-info mb-2">Enter Verification Code</h4>
+                    <p class="text-sm opacity-80 mb-4">
+                      We've sent a 6-digit code to {{ currentUser()?.email }}. 
+                      Enter the code below to verify your account.
+                    </p>
+                    
+                    <div class="space-y-4">
+                      <div class="form-control">
+                        <input 
+                          type="text" 
+                          placeholder="Enter 6-digit code"
+                          class="input input-bordered input-info"
+                          maxlength="6"
+                          [value]="otpCode()"
+                          (input)="otpCode.set($any($event.target).value)"
+                        />
+                      </div>
+                      
+                      <div class="flex gap-2">
+                        <button 
+                          class="btn btn-info btn-sm flex-1"
+                          (click)="verifyOTP()"
+                          [class.loading]="otpVerifying()"
+                          [disabled]="otpVerifying() || !otpCode().trim()"
+                        >
+                          @if (otpVerifying()) {
+                            <span class="loading loading-spinner loading-xs"></span>
+                            Verifying...
+                          } @else {
+                            Verify Code
+                          }
+                        </button>
+                        
+                        <button 
+                          class="btn btn-outline btn-sm"
+                          (click)="resendOTP()"
+                          [disabled]="otpLoading()"
+                        >
+                          Resend
+                        </button>
+                        
+                        <button 
+                          class="btn btn-ghost btn-sm"
+                          (click)="cancelOTPVerification()"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="card bg-success/10 border border-success/20">
+              <div class="card-body p-4">
+                <div class="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <div>
+                    <h4 class="font-semibold text-success mb-1">Account Verified</h4>
+                    <p class="text-sm opacity-80">
+                      Your account has been verified. You now have access to all features and increased trust from other users.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+
           <!-- Edit Button -->
           <div class="card-actions justify-end">
             <button class="btn btn-primary" (click)="toggleEdit()">

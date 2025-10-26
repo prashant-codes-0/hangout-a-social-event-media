@@ -170,6 +170,22 @@ export class HomepageComponent implements OnInit {
     return 'none';
   }
 
+  // Check if current user is verified
+  isUserVerified(): boolean {
+    const currentUser = this.authService.currentUser();
+    return currentUser?.verified || false;
+  }
+
+  // Check if user can join hangouts (verified, admin, or sponsor)
+  canUserJoinHangouts(): boolean {
+    const currentUser = this.authService.currentUser();
+    if (!currentUser) return false;
+    
+    return currentUser.verified || 
+           currentUser.role === 'admin' || 
+           currentUser.role === 'sponsor';
+  }
+
   joinHangout(hangout: Hangout) {
     console.log('🎯 Join hangout clicked for:', hangout.title);
     console.log('User status:', this.getUserStatus(hangout));
@@ -197,6 +213,13 @@ export class HomepageComponent implements OnInit {
       return;
     }
 
+    // Check if user is verified/admin/sponsor before making API call
+    if (!this.canUserJoinHangouts()) {
+      console.log('❌ User is not verified and cannot join hangouts');
+      alert('Only verified users, admins, and sponsors can join hangouts. Please verify your account first by going to your Profile page.');
+      return;
+    }
+
     console.log('✅ Making join request...');
     this.hangoutService.joinHangout(hangout._id).subscribe({
       next: (response) => {
@@ -209,6 +232,13 @@ export class HomepageComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error joining hangout:', err);
+        
+        // Handle 403 Forbidden error specifically
+        if (err.status === 403) {
+          alert('Only verified users, admins, and sponsors can join hangouts. Please verify your account first by going to your Profile page.');
+        } else {
+          alert('Failed to join hangout. Please try again.');
+        }
       }
     });
   }
