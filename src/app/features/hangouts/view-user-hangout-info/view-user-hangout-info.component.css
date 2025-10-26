@@ -1,0 +1,83 @@
+/* View User Hangout Info Component Styles */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.hangout-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hangout-card:hover {
+  transform: translateY(-1px);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.badge-status {
+  transition: all 0.2s ease;
+}
+
+/* Loading animation */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .hangout-card .card-body {
+    padding: 1rem;
+  }
+}
+
+/* Tab styling */
+.tabs-boxed .tab-active {
+  background-color: hsl(var(--p));
+  color: hsl(var(--pc));
+}
+
+/* Empty state styling */
+.empty-state {
+  opacity: 0.7;
+  filter: grayscale(0.3);
+}
+
+/* Progress bar styling */
+.progress-custom {
+  height: 0.5rem;
+  border-radius: 0.25rem;
+}
+
+/* Avatar hover effect */
+.avatar:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}

@@ -1,0 +1,421 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-bold">Hangout Info</h1>
+      <p class="text-base-content/70 mt-2">Complete overview of your hangout activities</p>
+    </div>
+    <div class="flex items-center gap-2">
+      @if (currentUser()?.verified) {
+      <span class="badge badge-success">Verified User</span>
+      } @else {
+      <span class="badge badge-warning">Unverified</span>
+      }
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs tabs-boxed mb-8">
+    <button class="tab" [class.tab-active]="activeTab() === 'overview'" (click)="setActiveTab('overview')">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      Overview
+    </button>
+    <button class="tab" [class.tab-active]="activeTab() === 'joined'" (click)="setActiveTab('joined')">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+      Joined ({{ stats().totalJoined }})
+    </button>
+    <button class="tab" [class.tab-active]="activeTab() === 'requested'" (click)="setActiveTab('requested')">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      Requested ({{ stats().totalRequested }})
+    </button>
+  </div>
+
+  @if (error()) {
+  <div class="alert alert-error mb-6">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <span>{{ error() }}</span>
+  </div>
+  }
+
+  @if (loading()) {
+  <div class="flex justify-center py-12">
+    <span class="loading loading-spinner loading-lg"></span>
+  </div>
+  } @else {
+  <!-- Overview Tab -->
+  @if (activeTab() === 'overview') {
+  <!-- Stats Overview -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="stat bg-primary text-primary-content rounded-lg">
+      <div class="stat-figure">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+      </div>
+      <div class="stat-title text-primary-content/70">Created</div>
+      <div class="stat-value">{{ stats().totalCreated }}</div>
+      <div class="stat-desc text-primary-content/60">Hangouts you've created</div>
+    </div>
+
+    <div class="stat bg-secondary text-secondary-content rounded-lg">
+      <div class="stat-figure">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      </div>
+      <div class="stat-title text-secondary-content/70">Joined</div>
+      <div class="stat-value">{{ stats().totalJoined }}</div>
+      <div class="stat-desc text-secondary-content/60">Hangouts you're attending</div>
+    </div>
+
+    <div class="stat bg-warning text-warning-content rounded-lg">
+      <div class="stat-figure">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="stat-title text-warning-content/70">Requested</div>
+      <div class="stat-value">{{ stats().totalRequested }}</div>
+      <div class="stat-desc text-warning-content/60">Pending requests</div>
+    </div>
+
+    <div class="stat bg-accent text-accent-content rounded-lg">
+      <div class="stat-figure">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      </div>
+      <div class="stat-title text-accent-content/70">Total Attendees</div>
+      <div class="stat-value">{{ stats().totalAttendees }}</div>
+      <div class="stat-desc text-accent-content/60">Across your hangouts</div>
+    </div>
+  </div>
+
+  <!-- Additional Stats -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Activity Summary</h2>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <span>Upcoming Hangouts</span>
+            <span class="badge badge-info">{{ stats().upcomingHangouts }}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span>Past Hangouts</span>
+            <span class="badge badge-neutral">{{ stats().pastHangouts }}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span>Average Attendees</span>
+            <span class="badge badge-primary">{{ stats().averageAttendeesPerHangout }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Preferences</h2>
+        <div class="space-y-4">
+          <div>
+            <span class="text-sm opacity-70">Most Popular Purpose</span>
+            <p class="font-semibold">{{ stats().mostPopularPurpose || 'None yet' }}</p>
+          </div>
+          <div>
+            <span class="text-sm opacity-70">Most Popular Place</span>
+            <p class="font-semibold">{{ stats().mostPopularPlace || 'None yet' }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Lists -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Created Hangouts -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="card-title text-lg">My Hangouts</h2>
+          <a routerLink="/hangouts/my-hangouts" class="btn btn-ghost btn-xs">View All</a>
+        </div>
+
+        @if (myHangouts().length === 0) {
+        <div class="text-center py-8">
+          <p class="text-sm opacity-60">No hangouts created yet</p>
+          <a routerLink="/hangouts/create" class="btn btn-primary btn-sm mt-2">Create Your First</a>
+        </div>
+        } @else {
+        <div class="space-y-3 max-h-64 overflow-y-auto">
+          @for (hangout of myHangouts(); track hangout._id) {
+          <a [routerLink]="['/hangouts/details', hangout._id]"
+            class="block p-3 bg-base-200 rounded hover:bg-base-300 transition-colors">
+            <h3 class="font-semibold text-sm">{{ hangout.title }}</h3>
+            <p class="text-xs opacity-70 mb-2">{{ formatDate(hangout.time) }}</p>
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60">{{ hangout.attendees.length || 0 }}/{{ hangout.capacity }}
+                attending</span>
+              <span class="text-xs opacity-60">{{ getTimeUntil(hangout.time) }}</span>
+            </div>
+          </a>
+          }
+        </div>
+        }
+      </div>
+    </div>
+
+    <!-- Joined Hangouts -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="card-title text-lg">Joined Hangouts</h2>
+          <a routerLink="/hangouts/joined-hangouts" class="btn btn-ghost btn-xs">View All</a>
+        </div>
+
+        @if (joinedHangouts().length === 0) {
+        <div class="text-center py-8">
+          <p class="text-sm opacity-60">No hangouts joined yet</p>
+          <a routerLink="/hangouts" class="btn btn-secondary btn-sm mt-2">Discover Hangouts</a>
+        </div>
+        } @else {
+        <div class="space-y-3 max-h-64 overflow-y-auto">
+          @for (hangout of joinedHangouts(); track hangout._id) {
+          <a [routerLink]="['/hangouts/details', hangout._id]"
+            class="block p-3 bg-base-200 rounded hover:bg-base-300 transition-colors">
+            <h3 class="font-semibold text-sm">{{ hangout.title }}</h3>
+            <p class="text-xs opacity-70 mb-2">{{ formatDate(hangout.time) }}</p>
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60">by {{ hangout.createdBy.name }}</span>
+              <span class="text-xs opacity-60">{{ getTimeUntil(hangout.time) }}</span>
+            </div>
+          </a>
+          }
+        </div>
+        }
+      </div>
+    </div>
+
+    <!-- Requested Hangouts -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="card-title text-lg">Pending Requests</h2>
+          <a routerLink="/hangouts/requested-hangouts" class="btn btn-ghost btn-xs">View All</a>
+        </div>
+
+        @if (requestedHangouts().length === 0) {
+        <div class="text-center py-8">
+          <p class="text-sm opacity-60">No pending requests</p>
+          <a routerLink="/hangouts" class="btn btn-warning btn-sm mt-2">Browse Hangouts</a>
+        </div>
+        } @else {
+        <div class="space-y-3 max-h-64 overflow-y-auto">
+          @for (hangout of requestedHangouts(); track hangout._id) {
+          <a [routerLink]="['/hangouts/details', hangout._id]"
+            class="block p-3 bg-base-200 rounded hover:bg-base-300 transition-colors">
+            <h3 class="font-semibold text-sm">{{ hangout.title }}</h3>
+            <p class="text-xs opacity-70 mb-2">{{ formatDate(hangout.time) }}</p>
+            <div class="flex items-center justify-between">
+              <span class="badge badge-warning badge-xs">Pending</span>
+              <span class="text-xs opacity-60">{{ getTimeUntil(hangout.time) }}</span>
+            </div>
+          </a>
+          }
+        </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="mt-8">
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <a routerLink="/hangouts/create" class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Create
+          </a>
+          <a routerLink="/hangouts" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Discover
+          </a>
+          <a routerLink="/hangouts/manage" class="btn btn-accent">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Manage
+          </a>
+          <a routerLink="/profile" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Profile
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Joined Tab -->
+  @if (activeTab() === 'joined') {
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold">Joined Hangouts</h2>
+      <span class="badge badge-secondary badge-lg">{{ stats().totalJoined }} Total</span>
+    </div>
+
+    @if (joinedHangouts().length === 0) {
+    <div class="text-center py-12">
+      <div class="text-6xl mb-4">📅</div>
+      <h3 class="text-xl font-bold mb-2">No joined hangouts yet</h3>
+      <p class="text-base-content/70 mb-6">Start exploring and join some amazing hangouts!</p>
+      <a routerLink="/hangouts" class="btn btn-secondary">Discover Hangouts</a>
+    </div>
+    } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      @for (hangout of joinedHangouts(); track hangout._id) {
+      <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+        <div class="card-body">
+          <h3 class="card-title text-lg">{{ hangout.title }}</h3>
+          <p class="text-sm opacity-80 mb-3 line-clamp-2">{{ hangout.description }}</p>
+
+          <div class="space-y-2 mb-4">
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{{ hangout.place }}</span>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{{ formatDate(hangout.time) }}</span>
+              <div class="badge badge-outline badge-sm">{{ getTimeUntil(hangout.time) }}</div>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-xs opacity-60">by {{ hangout.createdBy.name }}</span>
+            </div>
+          </div>
+
+          <div class="card-actions justify-end">
+            <a [routerLink]="['/hangouts/details', hangout._id]" class="btn btn-primary btn-sm">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+    }
+  </div>
+  }
+
+  <!-- Requested Tab -->
+  @if (activeTab() === 'requested') {
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold">Pending Requests</h2>
+      <span class="badge badge-warning badge-lg">{{ stats().totalRequested }} Total</span>
+    </div>
+
+    @if (requestedHangouts().length === 0) {
+    <div class="text-center py-12">
+      <div class="text-6xl mb-4">⏳</div>
+      <h3 class="text-xl font-bold mb-2">No pending requests</h3>
+      <p class="text-base-content/70 mb-6">All your hangout requests have been processed!</p>
+      <a routerLink="/hangouts" class="btn btn-warning">Browse Hangouts</a>
+    </div>
+    } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      @for (hangout of requestedHangouts(); track hangout._id) {
+      <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+        <div class="card-body">
+          <div class="flex items-start justify-between mb-2">
+            <h3 class="card-title text-lg">{{ hangout.title }}</h3>
+            <span class="badge badge-warning">Pending</span>
+          </div>
+          <p class="text-sm opacity-80 mb-3 line-clamp-2">{{ hangout.description }}</p>
+
+          <div class="space-y-2 mb-4">
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{{ hangout.place }}</span>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{{ formatDate(hangout.time) }}</span>
+              <div class="badge badge-outline badge-sm">{{ getTimeUntil(hangout.time) }}</div>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-xs opacity-60">by {{ hangout.createdBy.name }}</span>
+            </div>
+          </div>
+
+          <div class="card-actions justify-end">
+            <a [routerLink]="['/hangouts/details', hangout._id]" class="btn btn-primary btn-sm">
+              View Details
+            </a>
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+    }
+  </div>
+  }
+  }
+</div>

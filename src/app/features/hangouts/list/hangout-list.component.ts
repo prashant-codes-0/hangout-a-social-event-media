@@ -84,7 +84,9 @@ export class HangoutListComponent implements OnInit {
         this.hangoutService.getAllHangouts().subscribe({
             next: (response) => {
                 if (response.success) {
-                    this.hangouts.set(response.data);
+                    // Process hangouts to set userHasRequested flag
+                    const processedHangouts = this.processHangoutsWithRequestStatus(response.data);
+                    this.hangouts.set(processedHangouts);
                 }
                 this.loading.set(false);
             },
@@ -95,27 +97,101 @@ export class HangoutListComponent implements OnInit {
         });
     }
 
+    // Process hangouts to set userHasRequested flag
+    private processHangoutsWithRequestStatus(hangouts: Hangout[]): Hangout[] {
+        const currentUser = this.authService.currentUser();
+
+        if (!currentUser) {
+            return hangouts;
+        }
+
+        return hangouts.map(hangout => {
+            // Check if user is the creator
+            const isCreator = hangout.createdBy?._id === currentUser._id;
+
+            // Check if user has requested (requestedBy can be User[] or string[])
+            let userHasRequested = false;
+            if (hangout.requestedBy && Array.isArray(hangout.requestedBy)) {
+                userHasRequested = hangout.requestedBy.some(user => {
+                    // Handle both User object and string ID
+                    const userId = typeof user === 'string' ? user : user._id;
+                    return userId === currentUser._id;
+                });
+            }
+
+            // Check if user has joined (attendees should be User[])
+            let userHasJoined = false;
+            if (hangout.attendees && Array.isArray(hangout.attendees)) {
+                userHasJoined = hangout.attendees.some(user => {
+                    // Handle both User object and string ID
+                    const userId = typeof user === 'string' ? user : user._id;
+                    return userId === currentUser._id;
+                });
+            }
+
+            return {
+                ...hangout,
+                isCreator,
+                userHasRequested,
+                userHasJoined
+            };
+        });
+    }
+
     joinHangout(hangout: Hangout): void {
         if (!this.authService.isAuthenticated()) {
+            return;
+        }
+
+        // Check if user is verified/admin/sponsor before making API call
+        if (!this.canUserJoinHangouts()) {
+            this.error.set('Only verified users, admins, and sponsors can join hangouts. Please verify your account first.');
             return;
         }
 
         this.hangoutService.joinHangout(hangout._id).subscribe({
             next: (response: any) => {
                 if (response.success) {
-                    // Update the hangout in the list
-                    const currentHangouts = this.hangouts();
-                    const index = currentHangouts.findIndex(h => h._id === hangout._id);
-                    if (index !== -1) {
-                        currentHangouts[index] = response.data || hangout;
-                        this.hangouts.set([...currentHangouts]);
-                    }
+                    // Reload hangouts to get updated data
+                    this.loadHangouts();
                 }
             },
             error: (err) => {
-                this.error.set(err.error?.message || 'Failed to join hangout');
+                if (err.status === 403) {
+                    this.error.set('Only verified users, admins, and sponsors can join hangouts. Please verify your account first.');
+                } else {
+                    this.error.set(err.error?.message || 'Failed to join hangout');
+                }
             }
         });
+    }
+
+    leaveOrCancelHangout(hangout: Hangout): void {
+        if (!this.authService.isAuthenticated()) {
+            return;
+        }
+
+        this.hangoutService.leaveOrCancelHangout(hangout._id).subscribe({
+            next: (response: any) => {
+                if (response.success) {
+                    // Reload hangouts to get updated data
+                    this.loadHangouts();
+                }
+            },
+            error: (err) => {
+                this.error.set(err.error?.message || 'Failed to leave/cancel hangout');
+            }
+        });
+    }
+
+    // Check if user can join hangouts (verified, admin, or sponsor)
+    canUserJoinHangouts(): boolean {
+        const currentUser = this.authService.currentUser();
+        if (!currentUser) return false;
+        
+        return currentUser.verified || 
+               currentUser.role === 'admin' || 
+               currentUser.role === 'sponsor';
     }
 
     toggleBlast(hangout: Hangout): void {
@@ -126,13 +202,8 @@ export class HangoutListComponent implements OnInit {
         this.hangoutService.toggleBlast(hangout._id).subscribe({
             next: (response: any) => {
                 if (response.success) {
-                    // Update the hangout in the list
-                    const currentHangouts = this.hangouts();
-                    const index = currentHangouts.findIndex(h => h._id === hangout._id);
-                    if (index !== -1) {
-                        currentHangouts[index] = response.data || hangout;
-                        this.hangouts.set([...currentHangouts]);
-                    }
+                    // Reload hangouts to get updated data
+                    this.loadHangouts();
                 }
             },
             error: (err) => {

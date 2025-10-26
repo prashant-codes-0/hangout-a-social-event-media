@@ -39,7 +39,9 @@ export class HangoutDetailsComponent implements OnInit {
     this.hangoutService.getHangoutById(id).subscribe({
       next: (response) => {
         if (response.success) {
-          this.hangout.set(response.data);
+          // Process hangout to set user status flags
+          const processedHangout = this.processHangoutWithUserStatus(response.data);
+          this.hangout.set(processedHangout);
         }
         this.loading.set(false);
       },
@@ -50,9 +52,52 @@ export class HangoutDetailsComponent implements OnInit {
     });
   }
 
+  // Process hangout to set user status flags
+  private processHangoutWithUserStatus(hangout: Hangout): Hangout {
+    const currentUser = this.authService.currentUser();
+
+    if (!currentUser) {
+      return hangout;
+    }
+
+    // Check if user is the creator
+    const isCreator = hangout.createdBy?._id === currentUser._id;
+
+    // Check if user has requested (requestedBy can be User[] or string[])
+    let userHasRequested = false;
+    if (hangout.requestedBy && Array.isArray(hangout.requestedBy)) {
+      userHasRequested = hangout.requestedBy.some(user => {
+        const userId = typeof user === 'string' ? user : user._id;
+        return userId === currentUser._id;
+      });
+    }
+
+    // Check if user has joined (attendees should be User[])
+    let userHasJoined = false;
+    if (hangout.attendees && Array.isArray(hangout.attendees)) {
+      userHasJoined = hangout.attendees.some(user => {
+        const userId = typeof user === 'string' ? user : user._id;
+        return userId === currentUser._id;
+      });
+    }
+
+    return {
+      ...hangout,
+      isCreator,
+      userHasRequested,
+      userHasJoined
+    };
+  }
+
   joinHangout(): void {
     const hangout = this.hangout();
     if (!hangout || !this.authService.isAuthenticated()) {
+      return;
+    }
+
+    // Check if user is verified/admin/sponsor before making API call
+    if (!this.canUserJoinHangouts()) {
+      this.error.set('Only verified users, admins, and sponsors can join hangouts. Please verify your account first.');
       return;
     }
 
@@ -60,12 +105,17 @@ export class HangoutDetailsComponent implements OnInit {
     this.hangoutService.joinHangout(hangout._id).subscribe({
       next: (response: any) => {
         if (response.success) {
-          this.hangout.set(response.data || hangout);
+          // Reload the hangout to get updated data
+          this.loadHangout(hangout._id);
         }
         this.actionLoading.set(false);
       },
       error: (err) => {
-        this.error.set(err.error?.message || 'Failed to join hangout');
+        if (err.status === 403) {
+          this.error.set('Only verified users, admins, and sponsors can join hangouts. Please verify your account first.');
+        } else {
+          this.error.set(err.error?.message || 'Failed to join hangout');
+        }
         this.actionLoading.set(false);
       }
     });
@@ -77,24 +127,16 @@ export class HangoutDetailsComponent implements OnInit {
       return;
     }
 
-    console.log('🚪 Leave/Cancel hangout from details page:', hangout.title);
-    console.log('Hangout details:', hangout);
-    console.log('Current user:', this.authService.currentUser());
-
     this.actionLoading.set(true);
     this.hangoutService.leaveOrCancelHangout(hangout._id).subscribe({
       next: (response: any) => {
-        console.log('Leave/Cancel hangout response:', response);
         if (response.success) {
-          this.hangout.set(response.data || hangout);
-          console.log('✅ Successfully left/canceled hangout');
-        } else {
-          console.log('❌ API returned success: false');
+          // Reload the hangout to get updated data
+          this.loadHangout(hangout._id);
         }
         this.actionLoading.set(false);
       },
       error: (err) => {
-        console.error('💥 Error leaving/canceling hangout:', err);
         this.error.set(err.error?.message || 'Failed to leave/cancel hangout');
         this.actionLoading.set(false);
       }
@@ -110,7 +152,8 @@ export class HangoutDetailsComponent implements OnInit {
     this.hangoutService.toggleBlast(hangout._id).subscribe({
       next: (response: any) => {
         if (response.success) {
-          this.hangout.set(response.data || hangout);
+          // Reload the hangout to get updated data
+          this.loadHangout(hangout._id);
         }
       },
       error: (err) => {
@@ -177,9 +220,27 @@ export class HangoutDetailsComponent implements OnInit {
 
   isUserJoined(): boolean {
     const hangout = this.hangout();
+    return hangout?.userHasJoined || false;
+  }
+
+  isUserRequested(): boolean {
+    const hangout = this.hangout();
+    return hangout?.userHasRequested || false;
+  }
+
+  isUserCreator(): boolean {
+    const hangout = this.hangout();
+    return hangout?.isCreator || false;
+  }
+
+  // Check if user can join hangouts (verified, admin, or sponsor)
+  canUserJoinHangouts(): boolean {
     const currentUser = this.authService.currentUser();
-    return !!(hangout && currentUser && 
-      hangout.attendees.some(attendee => attendee._id === currentUser._id));
+    if (!currentUser) return false;
+    
+    return currentUser.verified || 
+           currentUser.role === 'admin' || 
+           currentUser.role === 'sponsor';
   }
 
   get isAuthenticated(): boolean {
