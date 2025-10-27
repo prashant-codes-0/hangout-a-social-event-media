@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService } from './chat.service';
 import { AuthService } from '../auth/auth.service';
+import { SocketService } from './socket.service';
 import { Message, SendMessageDto } from './chat.model';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-chat',
@@ -14,12 +16,34 @@ import { Message, SendMessageDto } from './chat.model';
       <!-- Chat Header -->
       @if (showHeader) {
         <div class="chat-header bg-primary text-primary-content p-4 rounded-t-lg">
-          <h3 class="font-semibold flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-2.697-.413l-2.725.725c-.138.037-.274-.014-.334-.14-.06-.126-.016-.276.108-.334l.725-2.725A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
-            </svg>
-            Hangout Chat
-          </h3>
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-2.697-.413l-2.725.725c-.138.037-.274-.014-.334-.14-.06-.126-.016-.276.108-.334l.725-2.725A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
+              </svg>
+              Hangout Chat
+              @if (isSocketConnected()) {
+                <span class="badge badge-xs badge-success animate-pulse">🔌 Live</span>
+              } @else {
+                <span class="badge badge-xs badge-warning">📡 HTTP Mode</span>
+              }
+              @if (typingUsers().length > 0) {
+                <span class="text-xs opacity-70">{{ typingUsers().join(', ') }} typing...</span>
+              }
+            </h3>
+            <div class="flex gap-1">
+              <button class="btn btn-ghost btn-sm" (click)="refreshMessages()" title="Refresh Messages">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button class="btn btn-ghost btn-xs" (click)="forceRefresh()" title="Force Reload All">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h-1m-6 6v-1m-6-11h1m5-5.5L12 4l1.5 1.5M18.5 12L20 12l-1.5 1.5M12 20l-1.5-1.5L12 20l1.5-1.5M5.5 12L4 12l1.5-1.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       }
 
@@ -129,6 +153,8 @@ import { Message, SendMessageDto } from './chat.model';
             placeholder="Type your message..."
             [(ngModel)]="newMessage"
             (keydown.enter)="sendMessage()"
+            (input)="onTyping()"
+            (blur)="onStopTyping()"
             [disabled]="sending()"
             #messageInput
           />
@@ -191,6 +217,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   private chatService = inject(ChatService);
   private authService = inject(AuthService);
+  private socketService = inject(SocketService);
 
   // State
   messages = signal<Message[]>([]);
@@ -209,8 +236,13 @@ export class ChatComponent implements OnInit, OnDestroy {
   private readonly pageSize = 50;
   private isLoadingHistory = false; // Flag to track history loading
 
-  // Polling for new messages
-  private pollInterval: any;
+  // Socket subscriptions
+  private subscriptions: Subscription[] = [];
+  isSocketConnected = signal(false);
+  typingUsers = signal<string[]>([]);
+
+  // Fallback polling
+  private fallbackPollInterval: any;
 
   constructor() {
     // Auto-scroll to bottom when new messages arrive (but not when loading history)
@@ -223,11 +255,11 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadMessages();
-    this.startPolling();
+    this.initializeSocket();
   }
 
   ngOnDestroy() {
-    this.stopPolling();
+    this.cleanupSocket();
   }
 
   loadMessages(reset: boolean = true) {
@@ -293,6 +325,67 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.loadMessages(false);
   }
 
+  // Manually refresh socket connection
+  refreshMessages() {
+    console.log('🔄 Manual socket reconnection triggered');
+    this.socketService.reconnect();
+  }
+
+  // Force complete reload of messages
+  forceRefresh() {
+    console.log('🔄 Force refresh - reloading all messages');
+    this.loadMessages(true);
+  }
+
+  // Typing indicator methods
+  private typingTimeout: any;
+
+  onTyping() {
+    // Send typing indicator
+    this.socketService.sendTypingIndicator(this.hangoutId, true);
+
+    // Clear existing timeout
+    if (this.typingTimeout) {
+      clearTimeout(this.typingTimeout);
+    }
+
+    // Set timeout to stop typing after 2 seconds of inactivity
+    this.typingTimeout = setTimeout(() => {
+      this.onStopTyping();
+    }, 2000);
+  }
+
+  onStopTyping() {
+    this.socketService.sendTypingIndicator(this.hangoutId, false);
+    if (this.typingTimeout) {
+      clearTimeout(this.typingTimeout);
+      this.typingTimeout = null;
+    }
+  }
+
+  // Fallback method to send message via HTTP API
+  private sendViaHttpApi() {
+    const messageDto: SendMessageDto = {
+      hangoutId: this.hangoutId,
+      content: this.newMessage.trim(),
+      messageType: 'text'
+    };
+
+    this.chatService.sendMessage(messageDto).subscribe({
+      next: (response) => {
+        if (response.success && !Array.isArray(response.data)) {
+          this.messages.update(msgs => [...msgs, response.data as Message]);
+          this.newMessage = '';
+        }
+        this.sending.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.message || 'Failed to send message');
+        this.sending.set(false);
+      }
+    });
+  }
+
   // Load all messages at once (for complete history)
   loadAllMessages() {
     this.loading.set(true);
@@ -335,26 +428,25 @@ export class ChatComponent implements OnInit, OnDestroy {
       // Send new message
       this.sending.set(true);
 
-      const messageDto: SendMessageDto = {
-        hangoutId: this.hangoutId,
-        content: this.newMessage.trim(),
-        messageType: 'text'
-      };
+      // Check if socket is connected, otherwise use HTTP API
+      if (this.socketService.isConnected()) {
+        try {
+          // Send message via Socket.IO for instant delivery
+          this.socketService.sendMessage(this.hangoutId, this.newMessage.trim(), 'text');
 
-      this.chatService.sendMessage(messageDto).subscribe({
-        next: (response) => {
-          if (response.success && !Array.isArray(response.data)) {
-            // Add new message to the list
-            this.messages.update(msgs => [...msgs, response.data as Message]);
-            this.newMessage = '';
-          }
+          // Clear the input immediately
+          this.newMessage = '';
           this.sending.set(false);
-        },
-        error: (err) => {
-          this.error.set(err.error?.message || 'Failed to send message');
-          this.sending.set(false);
+
+          console.log('� FMessage sent via Socket.IO');
+        } catch (error) {
+          console.error('💥 Failed to send message via socket:', error);
+          this.sendViaHttpApi();
         }
-      });
+      } else {
+        console.log('📡 Socket not connected, using HTTP API');
+        this.sendViaHttpApi();
+      }
     }
   }
 
@@ -445,43 +537,132 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  private startPolling() {
-    // Poll for new messages every 5 seconds
-    this.pollInterval = setInterval(() => {
-      this.loadRecentMessages();
-    }, 5000);
+  private initializeSocket() {
+    console.log('🔌 Initializing Socket.IO for hangout:', this.hangoutId);
+
+    // Connect to socket if not already connected
+    this.socketService.connect();
+
+    // Wait a bit for connection, then join room
+    setTimeout(() => {
+      if (this.socketService.isConnected()) {
+        this.socketService.joinHangoutRoom(this.hangoutId);
+      } else {
+        console.log('⚠️ Socket not connected, will use HTTP API fallback');
+      }
+    }, 1000);
+
+    // Subscribe to connection status
+    const connectionSub = this.socketService.isConnected$.subscribe(connected => {
+      this.isSocketConnected.set(connected);
+      console.log('🔌 Socket connection status:', connected);
+
+      if (connected) {
+        // Socket connected, stop fallback polling
+        this.stopFallbackPolling();
+        // Join room now that we're connected
+        this.socketService.joinHangoutRoom(this.hangoutId);
+      } else {
+        // Socket disconnected, start fallback polling
+        this.startFallbackPolling();
+      }
+    });
+    this.subscriptions.push(connectionSub);
+
+    // Subscribe to new messages
+    const messagesSub = this.socketService.onNewMessage().subscribe(message => {
+      console.log('📥 Received new message via socket:', message);
+      this.messages.update(msgs => [...msgs, message]);
+      this.newMessageEvent.emit(message);
+    });
+    this.subscriptions.push(messagesSub);
+
+    // Subscribe to message updates
+    const updatesSub = this.socketService.onMessageUpdated().subscribe(updatedMessage => {
+      console.log('✏️ Message updated via socket:', updatedMessage);
+      this.messages.update(msgs =>
+        msgs.map(msg => msg._id === updatedMessage._id ? updatedMessage : msg)
+      );
+    });
+    this.subscriptions.push(updatesSub);
+
+    // Subscribe to message deletions
+    const deletionsSub = this.socketService.onMessageDeleted().subscribe(({ messageId }) => {
+      console.log('🗑️ Message deleted via socket:', messageId);
+      this.messages.update(msgs => msgs.filter(msg => msg._id !== messageId));
+    });
+    this.subscriptions.push(deletionsSub);
+
+    // Subscribe to typing indicators
+    const typingSub = this.socketService.onUserTyping().subscribe(({ userId, userName, isTyping }) => {
+      const currentUser = this.authService.currentUser();
+      if (currentUser && userId !== currentUser._id) {
+        if (isTyping) {
+          this.typingUsers.update(users => [...users.filter(u => u !== userName), userName]);
+        } else {
+          this.typingUsers.update(users => users.filter(u => u !== userName));
+        }
+      }
+    });
+    this.subscriptions.push(typingSub);
   }
 
-  private stopPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
+  private cleanupSocket() {
+    console.log('🧹 Cleaning up socket connections');
+
+    // Leave the hangout room
+    this.socketService.leaveHangoutRoom(this.hangoutId);
+
+    // Stop fallback polling
+    this.stopFallbackPolling();
+
+    // Unsubscribe from all subscriptions
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
+  }
+
+  // Fallback polling when socket is not available
+  private startFallbackPolling() {
+    if (this.fallbackPollInterval) return; // Already polling
+
+    console.log('📡 Starting fallback HTTP polling (socket unavailable)');
+    this.fallbackPollInterval = setInterval(() => {
+      this.loadRecentMessagesHttp();
+    }, 3000); // Poll every 3 seconds as fallback
+  }
+
+  private stopFallbackPolling() {
+    if (this.fallbackPollInterval) {
+      console.log('⏹️ Stopping fallback HTTP polling');
+      clearInterval(this.fallbackPollInterval);
+      this.fallbackPollInterval = null;
     }
   }
 
-  private loadRecentMessages() {
-    // Get messages from the last 5 minutes to check for new ones
-    this.chatService.getRecentMessages(this.hangoutId, 0.1).subscribe({
+  private loadRecentMessagesHttp() {
+    // Use HTTP API to get recent messages as fallback
+    this.chatService.getMessages(this.hangoutId, 10, 0, false).subscribe({
       next: (response) => {
         if (response.success && Array.isArray(response.data)) {
-          const recentMessages = response.data.reverse();
+          const latestMessages = response.data.reverse();
           const currentMessages = this.messages();
-
-          // Find new messages that aren't in our current list
-          const newMessages = recentMessages.filter(recent =>
-            !currentMessages.some(current => current._id === recent._id)
+          const currentMessageIds = new Set(currentMessages.map(msg => msg._id));
+          const newMessages = latestMessages.filter(latest =>
+            !currentMessageIds.has(latest._id)
           );
 
           if (newMessages.length > 0) {
-            this.messages.update(msgs => [...msgs, ...newMessages]);
-            // Emit new messages for parent components
+            console.log('📥 Found new messages via HTTP fallback:', newMessages.length);
+            this.messages.update(msgs => [...msgs, ...newMessages.reverse()]);
             newMessages.forEach(msg => this.newMessageEvent.emit(msg));
           }
         }
       },
       error: (err) => {
-        // Silently handle polling errors to avoid spam
-        console.error('Failed to poll for new messages:', err);
+        console.error('💥 Fallback polling failed:', err);
       }
     });
   }
+
+
 }
