@@ -15,7 +15,9 @@ import { ChatModule } from './chat/chat.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/hangout'),
+        // uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/hangout'),
+        uri: process.env.MONGODB_URI,
+
       }),
       inject: [ConfigService],
     }),
@@ -26,4 +28,4 @@ import { ChatModule } from './chat/chat.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

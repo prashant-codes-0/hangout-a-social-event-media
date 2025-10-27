@@ -7,10 +7,10 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Enable CORS
   app.enableCors();
-  
+
   // Enable validation
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
@@ -65,8 +65,10 @@ async function bootstrap() {
       persistAuthorization: true,
     },
   });
-  
+
   await app.listen(process.env.PORT ?? 3000);
+  console.log('Connecting to MongoDB at', process.env.MONGODB_URI);
+
   console.log(`Hangout App is running on: http://localhost:${process.env.PORT ?? 3000}`);
   console.log(`Swagger UI is available on: http://localhost:${process.env.PORT ?? 3000}/api`);
 }
