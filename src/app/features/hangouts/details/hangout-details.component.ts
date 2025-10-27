@@ -4,11 +4,12 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HangoutService } from '../hangout.service';
 import { AuthService } from '../../auth/auth.service';
 import { Hangout } from '../hangout.model';
+import { ChatComponent } from '../../chat/chat.component';
 
 @Component({
   selector: 'app-hangout-details',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ChatComponent],
   templateUrl: './hangout-details.component.html',
   styleUrls: ['./hangout-details.component.css']
 })
@@ -245,5 +246,24 @@ export class HangoutDetailsComponent implements OnInit {
 
   get isAuthenticated(): boolean {
     return this.authService.isAuthenticated();
+  }
+
+  // Check if user can access chat (creator, attendee, or admin)
+  canAccessChat(): boolean {
+    const hangout = this.hangout();
+    const currentUser = this.authService.currentUser();
+    
+    if (!hangout || !currentUser) return false;
+    
+    // Admin can always access
+    if (currentUser.role === 'admin') return true;
+    
+    // Creator can always access
+    if (hangout.isCreator) return true;
+    
+    // Attendees can access
+    if (hangout.userHasJoined) return true;
+    
+    return false;
   }
 }

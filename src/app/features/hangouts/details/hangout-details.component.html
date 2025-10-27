@@ -260,7 +260,7 @@
 
           <!-- Attendees Card -->
           @if (hangout()!.attendees.length > 0) {
-            <div class="card bg-base-100 shadow-xl">
+            <div class="card bg-base-100 shadow-xl mb-6">
               <div class="card-body">
                 <h3 class="card-title mb-4">Attendees ({{ hangout()!.attendees.length }})</h3>
                 <div class="space-y-3">
@@ -275,6 +275,29 @@
                     </div>
                   }
                 </div>
+              </div>
+            </div>
+          }
+
+          <!-- Chat Section -->
+          @if (canAccessChat()) {
+            <div class="card bg-base-100 shadow-xl">
+              <div class="card-body p-0">
+                <div class="flex items-center justify-between p-4 border-b border-base-300">
+                  <h3 class="font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.955 8.955 0 01-2.697-.413l-2.725.725c-.138.037-.274-.014-.334-.14-.06-.126-.016-.276.108-.334l.725-2.725A8.955 8.955 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
+                    </svg>
+                    Chat
+                  </h3>
+                  <a [routerLink]="['/hangouts/chat', hangout()!._id]" class="btn btn-ghost btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    Expand
+                  </a>
+                </div>
+                <app-chat [hangoutId]="hangout()!._id" [showHeader]="false"></app-chat>
               </div>
             </div>
           }

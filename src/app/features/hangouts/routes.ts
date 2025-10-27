@@ -50,5 +50,10 @@ export const hangoutRoutes: Routes = [
     path: 'info',
     loadComponent: () => import('./view-user-hangout-info/view-user-hangout-info.component').then(c => c.ViewUserHangoutInfoComponent),
     canActivate: [authGuard]
+  },
+  {
+    path: 'chat/:id',
+    loadComponent: () => import('../chat/chat-page.component').then(c => c.ChatPageComponent),
+    canActivate: [authGuard]
   }
 ];
