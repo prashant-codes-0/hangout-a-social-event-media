@@ -47,10 +47,38 @@ import { Subscription } from 'rxjs';
         </div>
       }
 
+      <!-- Quick Actions (Always Visible) -->
+      <div class="chat-controls bg-base-200 p-2 border-b border-base-300">
+        <div class="flex gap-2 justify-center">
+          <button 
+            class="btn btn-outline btn-xs"
+            (click)="loadAllMessages()"
+            [disabled]="loading() || loadingMore()"
+            title="Load complete message history"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+            </svg>
+            All History
+          </button>
+          <button 
+            class="btn btn-ghost btn-xs"
+            (click)="clearMessages()"
+            title="Clear messages from view"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Clear
+          </button>
+        </div>
+      </div>
+
       <!-- Messages Area -->
-      <div class="chat-messages flex-1 p-4 overflow-y-auto space-y-3" #messagesContainer>
-        <!-- Load More Messages Button -->
-        @if (hasMoreMessages() && messages().length > 0) {
+      <div class="chat-messages flex-1 p-4 overflow-y-auto space-y-3" #messagesContainer (scroll)="onScroll()">
+
+        <!-- Load More Messages Button (Pagination) - Shows when 30+ messages and scrolled up -->
+        @if (hasMoreMessages() && messages().length > 30 && showPaginationButtons()) {
           <div class="text-center py-2 space-y-2 load-more-section">
             <button 
               class="btn btn-ghost btn-sm"
@@ -227,6 +255,10 @@ export class ChatComponent implements OnInit, OnDestroy {
   error = signal<string | null>(null);
   hasMoreMessages = signal(true);
 
+  // Scroll detection for pagination
+  showPaginationButtons = signal(false);
+  private scrollThreshold = 100; // pixels from bottom to show pagination
+
   // Message input
   newMessage = '';
   editingMessage = signal<Message | null>(null);
@@ -256,6 +288,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.loadMessages();
     this.initializeSocket();
+
+    // Initial scroll detection setup
+    setTimeout(() => {
+      this.onScroll();
+    }, 500);
   }
 
   ngOnDestroy() {
@@ -416,6 +453,70 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Load recent messages by hours
+  loadRecentMessages(hours: number) {
+    this.loading.set(true);
+    this.error.set(null);
+    this.isLoadingHistory = true;
+
+    this.chatService.getRecentMessages(this.hangoutId, hours).subscribe({
+      next: (response) => {
+        if (response.success && Array.isArray(response.data)) {
+          // Reverse to show oldest first
+          this.messages.set(response.data.reverse());
+          this.hasMoreMessages.set(false);
+          this.currentSkip = response.data.length;
+          setTimeout(() => {
+            this.scrollToBottom();
+            this.isLoadingHistory = false;
+          }, 100);
+        }
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.message || `Failed to load messages from last ${hours} hours`);
+        this.loading.set(false);
+        this.isLoadingHistory = false;
+      }
+    });
+  }
+
+  // Load restricted history
+  loadRestrictedHistory() {
+    this.loading.set(true);
+    this.error.set(null);
+    this.isLoadingHistory = true;
+
+    this.chatService.getMessages(this.hangoutId, 50, 0, true).subscribe({
+      next: (response) => {
+        if (response.success && Array.isArray(response.data)) {
+          // Reverse to show oldest first
+          this.messages.set(response.data.reverse());
+          this.hasMoreMessages.set(false);
+          this.currentSkip = response.data.length;
+          setTimeout(() => {
+            this.scrollToBottom();
+            this.isLoadingHistory = false;
+          }, 100);
+        }
+        this.loading.set(false);
+      },
+      error: (err) => {
+        this.error.set(err.error?.message || 'Failed to load restricted history');
+        this.loading.set(false);
+        this.isLoadingHistory = false;
+      }
+    });
+  }
+
+  // Clear messages from view
+  clearMessages() {
+    this.messages.set([]);
+    this.hasMoreMessages.set(true);
+    this.currentSkip = 0;
+    console.log('🗑️ Messages cleared from view');
+  }
+
   sendMessage() {
     if (!this.newMessage.trim()) return;
 
@@ -535,6 +636,23 @@ export class ChatComponent implements OnInit, OnDestroy {
         behavior: 'smooth'
       });
     }
+  }
+
+  // Detect scroll position to show/hide pagination buttons
+  onScroll() {
+    if (!this.messagesContainer) return;
+
+    const element = this.messagesContainer.nativeElement;
+    const scrollTop = element.scrollTop;
+    const scrollHeight = element.scrollHeight;
+    const clientHeight = element.clientHeight;
+
+    // Calculate distance from bottom
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+
+    // Show pagination buttons when user scrolls up more than threshold and has 30+ messages
+    const shouldShowPagination = distanceFromBottom > this.scrollThreshold && this.messages().length > 30;
+    this.showPaginationButtons.set(shouldShowPagination);
   }
 
   private initializeSocket() {
