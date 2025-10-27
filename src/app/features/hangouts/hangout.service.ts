@@ -2,14 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Hangout, CreateHangoutDto, HangoutFilters, } from './hangout.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
     providedIn: 'root'
 })
 export class HangoutService {
     private http = inject(HttpClient);
-    private apiUrl = 'http://localhost:3000/hangouts';
-
+    private apiUrl = `${environment.apiUrl}/hangouts`;
     getAllHangouts(filters?: HangoutFilters): Observable<{ success: boolean; data: Hangout[] }> {
         let params = new HttpParams();
 

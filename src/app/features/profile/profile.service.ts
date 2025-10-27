@@ -3,6 +3,7 @@ import { Observable, of } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../auth/auth.service';
 import { ProfileData, UpdateProfileDto } from './profile.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -10,7 +11,8 @@ import { ProfileData, UpdateProfileDto } from './profile.model';
 export class ProfileService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
-  private apiUrl = 'http://localhost:3000/profile';
+  private apiUrl = `${environment.apiUrl}/profile`;
+  private readonly baseUrl = environment.apiUrl;
 
   /**
    * Get user profile data
@@ -92,7 +94,7 @@ export class ProfileService {
       throw new Error('No email address available');
     }
 
-    return this.http.post('http://localhost:3000/auth/send-otp', {
+    return this.http.post(`${this.baseUrl}/auth/send-otp`, {
       email: emailToUse
     });
   }
@@ -101,7 +103,7 @@ export class ProfileService {
    * Verify OTP for email verification
    */
   verifyOTP(email: string, otpCode: string): Observable<any> {
-    return this.http.post('http://localhost:3000/auth/verify-otp', {
+    return this.http.post(`${this.baseUrl}/auth/verify-otp`, {
       email,
       otpCode
     });
@@ -121,7 +123,7 @@ export class ProfileService {
       throw new Error('User is already verified');
     }
 
-    return this.http.patch('http://localhost:3000/auth/verify-only', {
+    return this.http.patch(`${this.baseUrl}/auth/verify-only`, {
       userId: currentUser._id
     });
   }

@@ -2,13 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { AdminStats, UserManagement, HangoutModeration } from './admin.model';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AdminService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3000/admin';
+  private apiUrl = `${environment.apiUrl}/admin`;
 
   /**
    * Get admin dashboard statistics
