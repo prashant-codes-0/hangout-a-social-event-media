@@ -9,7 +9,15 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
   // Enable CORS
-  app.enableCors();
+  // app.enableCors();
+  app.enableCors({
+  origin: [
+    'http://localhost:4200',
+    'https://hangout-a-social-event-media.vercel.app',
+  ],
+  credentials: true,
+});
+  
   
   // Enable validation
   app.useGlobalPipes(new ValidationPipe({
