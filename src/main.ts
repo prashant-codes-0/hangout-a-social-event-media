@@ -13,7 +13,7 @@ async function bootstrap() {
   app.enableCors({
   origin: [
     'http://localhost:4200',
-    'https://hangout-a-social-event-media.vercel.app',
+    'https://hangout-angular.vercel.app',
   ],
   credentials: true,
 });
