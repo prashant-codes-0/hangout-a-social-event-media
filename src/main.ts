@@ -11,12 +11,14 @@ async function bootstrap() {
   // Enable CORS
   // app.enableCors();
   app.enableCors({
-  origin: [
-    'http://localhost:4200',
-    'https://hangout-angular.vercel.app',
-  ],
-  credentials: true,
-});
+    origin: [
+      'http://localhost:4200',
+      'https://hangout-angular.vercel.app',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
   
   
   // Enable validation
