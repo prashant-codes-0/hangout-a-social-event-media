@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { HangoutLocation, HangoutLocationSchema } from './hangout-location.schema';
 
 @Schema({ timestamps: true })
 export class Hangout extends Document {
@@ -14,6 +15,10 @@ export class Hangout extends Document {
 
   @Prop({ required: true })
   place: string;
+
+  // Optional map location (place/landmark or from → to route)
+  @Prop({ type: HangoutLocationSchema })
+  location?: HangoutLocation;
 
   @Prop({ required: true })
   time: Date;

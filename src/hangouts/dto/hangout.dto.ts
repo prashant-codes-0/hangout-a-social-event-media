@@ -1,5 +1,7 @@
-import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { HangoutLocationDto } from './hangout-location.dto';
 
 export class CreateHangoutDto {
   @ApiProperty({
@@ -29,6 +31,15 @@ export class CreateHangoutDto {
   })
   @IsString()
   place: string;
+
+  @ApiPropertyOptional({
+    description: 'Map location picked from OpenStreetMap: a place/landmark or a from → to route',
+    type: HangoutLocationDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => HangoutLocationDto)
+  location?: HangoutLocationDto;
 
   @ApiProperty({
     description: 'Date and time of the hangout (ISO 8601 format)',
@@ -107,6 +118,16 @@ export class UpdateHangoutDto {
   @IsOptional()
   @IsString()
   place?: string;
+
+  @ApiPropertyOptional({
+    description: 'Map location (send null to remove it)',
+    type: HangoutLocationDto,
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => HangoutLocationDto)
+  location?: HangoutLocationDto | null;
 
   @ApiPropertyOptional({
     description: 'Date and time of the hangout (ISO 8601 format)',

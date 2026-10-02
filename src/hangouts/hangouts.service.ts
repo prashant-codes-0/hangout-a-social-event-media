@@ -196,9 +196,14 @@ export class HangoutsService {
       throw new ForbiddenException('You can only update your own hangouts');
     }
 
-    const updateData = { ...updateHangoutDto };
+    const updateData: any = { ...updateHangoutDto };
     if (updateHangoutDto.time) {
-      updateData.time = new Date(updateHangoutDto.time) as any;
+      updateData.time = new Date(updateHangoutDto.time);
+    }
+    if (updateHangoutDto.location === null) {
+      // Remove the map location
+      delete updateData.location;
+      updateData.$unset = { location: 1 };
     }
 
     await this.hangoutModel.findByIdAndUpdate(id, updateData);
