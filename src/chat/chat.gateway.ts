@@ -11,7 +11,10 @@ import { Server, Socket } from 'socket.io';
 
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
+import { PrivateChatService } from './private-chat.service';
 import { SendMessageDto, EditMessageDto } from './dto/chat.dto';
+
+type CallType = 'audio' | 'video';
 
 interface AuthenticatedSocket extends Socket {
     userId?: string;
@@ -32,6 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     constructor(
         private chatService: ChatService,
+        private privateChatService: PrivateChatService,
         private jwtService: JwtService,
     ) { }
 
@@ -228,5 +232,88 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             user: client.user,
             isTyping,
         });
+    }
+
+    // ---- WebRTC call signaling (private chats only) ----
+    // The server only relays signaling between the two participants of an accepted private chat;
+    // the audio/video itself flows peer-to-peer.
+
+    @SubscribeMessage('callOffer')
+    async handleCallOffer(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string; sdp: any; callType: CallType },
+    ) {
+        try {
+            const { me, peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!, true);
+            const callType: CallType = data.callType === 'video' ? 'video' : 'audio';
+
+            this.server.to(`user_${peerId}`).emit('incomingCall', {
+                chatId: data.chatId,
+                from: { _id: me._id.toString(), name: me.name, email: me.email },
+                callType,
+                sdp: data.sdp,
+            });
+        } catch (error) {
+            client.emit('callError', { chatId: data?.chatId, message: error.message });
+        }
+    }
+
+    @SubscribeMessage('callAnswer')
+    async handleCallAnswer(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string; sdp: any },
+    ) {
+        try {
+            const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
+            this.server.to(`user_${peerId}`).emit('callAnswered', { chatId: data.chatId, sdp: data.sdp });
+
+            // Stop the call ringing in this user's other tabs/devices
+            client.to(`user_${client.userId}`).emit('callHandledElsewhere', { chatId: data.chatId });
+        } catch (error) {
+            client.emit('callError', { chatId: data?.chatId, message: error.message });
+        }
+    }
+
+    @SubscribeMessage('callIceCandidate')
+    async handleCallIceCandidate(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string; candidate: any },
+    ) {
+        try {
+            const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
+            this.server.to(`user_${peerId}`).emit('callIceCandidate', { chatId: data.chatId, candidate: data.candidate });
+        } catch (error) {
+            client.emit('callError', { chatId: data?.chatId, message: error.message });
+        }
+    }
+
+    @SubscribeMessage('callReject')
+    async handleCallReject(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string; reason?: 'declined' | 'busy' },
+    ) {
+        try {
+            const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
+            this.server.to(`user_${peerId}`).emit('callRejected', {
+                chatId: data.chatId,
+                reason: data.reason === 'busy' ? 'busy' : 'declined',
+            });
+            client.to(`user_${client.userId}`).emit('callHandledElsewhere', { chatId: data.chatId });
+        } catch (error) {
+            client.emit('callError', { chatId: data?.chatId, message: error.message });
+        }
+    }
+
+    @SubscribeMessage('callEnd')
+    async handleCallEnd(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string },
+    ) {
+        try {
+            const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
+            this.server.to(`user_${peerId}`).emit('callEnded', { chatId: data.chatId });
+        } catch (error) {
+            client.emit('callError', { chatId: data?.chatId, message: error.message });
+        }
     }
 }

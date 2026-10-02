@@ -121,6 +121,28 @@ export class PrivateChatService {
     return this.populateChat(chat);
   }
 
+  // Validates a call between the two participants of an accepted chat and returns the other participant.
+  // Membership is only re-checked when a call starts, not for every signaling message.
+  async getCallPeer(chatId: string, userId: string, checkMembership = false) {
+    const chat = await this.getChatForParticipant(chatId, userId);
+    if (chat.status !== PrivateChatStatus.ACCEPTED) {
+      throw new ForbiddenException('This private chat has not been accepted');
+    }
+
+    if (checkMembership) {
+      const hangout = await this.hangoutModel.findById(chat.hangoutId);
+      if (!hangout || !this.isMember(hangout, userId)) {
+        throw new ForbiddenException('You are no longer part of this hangout');
+      }
+    }
+
+    await this.populateChat(chat);
+    const isRequester = (chat.requester as any)._id.toString() === userId;
+    const me = isRequester ? chat.requester : chat.recipient;
+    const peer = isRequester ? chat.recipient : chat.requester;
+    return { chat, me: me as any, peerId: (peer as any)._id.toString() };
+  }
+
   async getChatsForHangout(hangoutId: string, userId: string) {
     return this.privateChatModel
       .find({
