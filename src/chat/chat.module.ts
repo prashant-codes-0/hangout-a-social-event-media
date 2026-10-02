@@ -12,6 +12,7 @@ import { PrivateChat, PrivateChatSchema } from './schemas/private-chat.schema';
 import { PrivateMessage, PrivateMessageSchema } from './schemas/private-message.schema';
 import { PrivateChatService } from './private-chat.service';
 import { PrivateChatController } from './private-chat.controller';
+import { IceServersService } from './ice-servers.service';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { PrivateChatController } from './private-chat.controller';
       inject: [ConfigService],
     }),
   ],
-  providers: [ChatService, ChatGateway, PrivateChatService],
+  providers: [ChatService, ChatGateway, PrivateChatService, IceServersService],
   controllers: [ChatController, PrivateChatController],
   exports: [ChatService],
 })

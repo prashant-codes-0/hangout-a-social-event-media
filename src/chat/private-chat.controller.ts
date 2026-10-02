@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { PrivateChatService } from './private-chat.service';
 import { ChatGateway } from './chat.gateway';
+import { IceServersService } from './ice-servers.service';
 import {
   RequestPrivateChatDto,
   RespondPrivateChatDto,
@@ -35,6 +36,7 @@ export class PrivateChatController {
   constructor(
     private readonly privateChatService: PrivateChatService,
     private readonly chatGateway: ChatGateway,
+    private readonly iceServersService: IceServersService,
   ) {}
 
   @Post('request')
@@ -59,6 +61,13 @@ export class PrivateChatController {
     const chat = await this.privateChatService.respondToRequest(chatId, req.user.id, dto.accept);
     this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'privateChatUpdated', chat);
     return chat;
+  }
+
+  @Get('ice-servers')
+  @ApiOperation({ summary: 'WebRTC STUN/TURN servers (with short-lived TURN credentials) for private-chat calls' })
+  @ApiResponse({ status: 200, description: '{ iceServers, ttlSeconds, relay }' })
+  getIceServers(@Request() req) {
+    return this.iceServersService.getIceServers(req.user.id);
   }
 
   @Get('presence')
