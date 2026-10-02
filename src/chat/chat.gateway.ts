@@ -32,6 +32,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     server: Server;
 
     private connectedUsers = new Map<string, string>(); // socketId -> userId
+    private onlineSocketCounts = new Map<string, number>(); // userId -> number of connected sockets
+    private lastSeen = new Map<string, Date>(); // userId -> when their last socket disconnected
 
     constructor(
         private chatService: ChatService,
@@ -60,6 +62,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // Personal room so private chat events reach all of this user's sockets
             client.join(`user_${client.userId}`);
 
+            // Online while at least one tab/device is connected
+            const sockets = (this.onlineSocketCounts.get(client.userId!) ?? 0) + 1;
+            this.onlineSocketCounts.set(client.userId!, sockets);
+            if (sockets === 1) {
+                this.server.emit('presenceChanged', { userId: client.userId, online: true });
+            }
+
             console.log(`User ${client.userId} connected to chat`);
         } catch (error) {
             console.log('Invalid token, disconnecting client');
@@ -72,8 +81,35 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userIds.forEach(userId => this.server.to(`user_${userId}`).emit(event, payload));
     }
 
+    // Online status + last seen for the given users (in-memory, per server instance)
+    getPresence(userIds: string[]) {
+        return userIds.map(userId => ({
+            userId,
+            online: this.onlineSocketCounts.has(userId),
+            lastSeen: this.lastSeen.get(userId)?.toISOString() ?? null,
+        }));
+    }
+
     handleDisconnect(client: AuthenticatedSocket) {
         this.connectedUsers.delete(client.id);
+
+        // Sockets rejected in handleConnection never counted as online
+        if (client.userId && this.onlineSocketCounts.has(client.userId)) {
+            const sockets = this.onlineSocketCounts.get(client.userId)! - 1;
+            if (sockets <= 0) {
+                const lastSeen = new Date();
+                this.onlineSocketCounts.delete(client.userId);
+                this.lastSeen.set(client.userId, lastSeen);
+                this.server.emit('presenceChanged', {
+                    userId: client.userId,
+                    online: false,
+                    lastSeen: lastSeen.toISOString(),
+                });
+            } else {
+                this.onlineSocketCounts.set(client.userId, sockets);
+            }
+        }
+
         console.log(`User ${client.userId} disconnected from chat`);
     }
 

@@ -61,6 +61,19 @@ export class PrivateChatController {
     return chat;
   }
 
+  @Get('presence')
+  @ApiOperation({ summary: 'Online/offline status of users (live updates arrive via the presenceChanged socket event)' })
+  @ApiQuery({ name: 'userIds', required: true, description: 'Comma-separated user IDs (max 200)' })
+  @ApiResponse({ status: 200, description: 'Presence per user: { userId, online, lastSeen }' })
+  getPresence(@Query('userIds') userIds?: string) {
+    const ids = (userIds || '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(Boolean)
+      .slice(0, 200);
+    return this.chatGateway.getPresence(ids);
+  }
+
   @Get('hangout/:hangoutId')
   @ApiOperation({ summary: 'List your private chats and requests within a hangout' })
   @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
