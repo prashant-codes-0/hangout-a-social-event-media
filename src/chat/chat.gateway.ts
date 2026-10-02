@@ -53,11 +53,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             this.connectedUsers.set(client.id, client.userId!);
 
+            // Personal room so private chat events reach all of this user's sockets
+            client.join(`user_${client.userId}`);
+
             console.log(`User ${client.userId} connected to chat`);
         } catch (error) {
             console.log('Invalid token, disconnecting client');
             client.disconnect();
         }
+    }
+
+    // Push an event to specific users (used for private chats)
+    emitToUsers(userIds: string[], event: string, payload: any) {
+        userIds.forEach(userId => this.server.to(`user_${userId}`).emit(event, payload));
     }
 
     handleDisconnect(client: AuthenticatedSocket) {
