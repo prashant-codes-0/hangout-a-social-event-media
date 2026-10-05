@@ -7,6 +7,7 @@ import { VerifyUserDto } from './dto/verify-user.dto';
 import { VerifyOnlyDto } from './dto/verify-only.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { SendOTPDto, VerifyOTPDto, ResendOTPDto } from './dto/otp.dto';
+import { UpdateSettingsDto } from './dto/settings.dto';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
 
@@ -14,6 +15,26 @@ import { ApiResponseDto } from '../common/dto/api-response.dto';
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) { }
+
+  @Get('me/settings')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Your app settings (notification sounds, call ringtone)' })
+  @ApiResponse({ status: 200, description: '{ notificationSounds, callRingtone }' })
+  getSettings(@Request() req) {
+    return this.authService.getSettings(req.user.id);
+  }
+
+  @Patch('me/settings')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update your app settings (send only the fields to change)' })
+  @ApiBody({ type: UpdateSettingsDto })
+  @ApiResponse({ status: 200, description: 'The full, updated settings' })
+  @ApiResponse({ status: 400, description: 'Invalid or unknown setting' })
+  updateSettings(@Request() req, @Body() dto: UpdateSettingsDto) {
+    return this.authService.updateSettings(req.user.id, dto);
+  }
 
   @Post('signup')
   @ApiOperation({ summary: 'Register a new user' })

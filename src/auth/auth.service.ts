@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { User, UserRole } from './schemas/user.schema';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
+import { UpdateSettingsDto, SettingsResponse } from './dto/settings.dto';
 import { EmailService } from '../common/services/email.service';
 
 @Injectable()
@@ -96,6 +97,36 @@ export class AuthService {
 
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id);
+  }
+
+  // ---- App settings (per account) ----
+
+  async getSettings(userId: string): Promise<SettingsResponse> {
+    const user = await this.userModel.findById(userId).select('settings').lean();
+    if (!user) throw new NotFoundException('User not found');
+    return this.withDefaults(user.settings);
+  }
+
+  async updateSettings(userId: string, dto: UpdateSettingsDto): Promise<SettingsResponse> {
+    // Only touch the fields that were sent
+    const changes: Record<string, boolean> = {};
+    if (typeof dto.notificationSounds === 'boolean') changes['settings.notificationSounds'] = dto.notificationSounds;
+    if (typeof dto.callRingtone === 'boolean') changes['settings.callRingtone'] = dto.callRingtone;
+
+    const user = await this.userModel
+      .findByIdAndUpdate(userId, { $set: changes }, { new: true })
+      .select('settings')
+      .lean();
+    if (!user) throw new NotFoundException('User not found');
+    return this.withDefaults(user.settings);
+  }
+
+  // Users created before settings existed have none stored: fill in the defaults
+  private withDefaults(settings?: Partial<SettingsResponse> | null): SettingsResponse {
+    return {
+      notificationSounds: settings?.notificationSounds ?? true,
+      callRingtone: settings?.callRingtone ?? true,
+    };
   }
 
 

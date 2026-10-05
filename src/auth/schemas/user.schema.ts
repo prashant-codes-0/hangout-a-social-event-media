@@ -7,6 +7,20 @@ export enum UserRole {
   SPONSOR = 'sponsor',
 }
 
+// Per-account app preferences (saved on the server so they follow the user across devices)
+@Schema({ _id: false })
+export class UserSettings {
+  // Chimes for messages, chat requests and other alerts
+  @Prop({ default: true })
+  notificationSounds: boolean;
+
+  // Ringtone for incoming audio/video calls (the on-screen call popup shows either way)
+  @Prop({ default: true })
+  callRingtone: boolean;
+}
+
+export const UserSettingsSchema = SchemaFactory.createForClass(UserSettings);
+
 @Schema({ timestamps: true })
 export class User extends Document {
   @Prop({ required: true })
@@ -33,6 +47,9 @@ export class User extends Document {
 
   @Prop()
   otpExpiry?: Date;
+
+  @Prop({ type: UserSettingsSchema, default: () => ({}) })
+  settings: UserSettings;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
