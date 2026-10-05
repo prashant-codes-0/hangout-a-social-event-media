@@ -28,8 +28,15 @@ interface TrackedCall {
     hangoutId: string;
     callType: CallType;
     answered: boolean;
+    answeredAt?: number; // for the talk time shown in the chat history
     timer: ReturnType<typeof setTimeout>;
 }
+
+// Why a tracked call stopped
+type CallEndReason = 'ended' | 'declined' | 'busy' | 'timeout' | 'offline';
+
+// Private-typing checks are cached so every keystroke doesn't hit the database
+const TYPING_ACCESS_TTL_MS = 10 * 60_000;
 
 // Clients give up ringing after 45s; this is a server-side backstop
 const MISSED_CALL_TIMEOUT_MS = 60_000;
@@ -146,23 +153,35 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     // The user has no sockets left (closed the app, lost connection): end their calls so the other
-    // side stops ringing, and record a missed call if they were the one calling
+    // side stops ringing (an unanswered call counts as missed)
     private endCallsForOfflineUser(userId: string) {
         this.calls.forEach((call, chatId) => {
             if (call.callerId !== userId && call.calleeId !== userId) return;
             const otherId = call.callerId === userId ? call.calleeId : call.callerId;
             this.realtime.emitToUser(otherId, 'callEnded', { chatId });
-            this.finishCall(chatId, call.callerId === userId && !call.answered);
+            this.finishCall(chatId, 'offline');
         });
     }
 
-    // Stop tracking a call; optionally tell the callee they missed it
-    private finishCall(chatId: string, missed: boolean) {
+    // Stop tracking a call: add it to the private chat's history and, if the callee missed it,
+    // send them a "missed call" alert. Safe to call twice (the second call is a no-op).
+    private finishCall(chatId: string, reason: CallEndReason) {
         const call = this.calls.get(chatId);
         if (!call) return;
         clearTimeout(call.timer);
         this.calls.delete(chatId);
 
+        const status = call.answered ? 'completed'
+            : reason === 'declined' ? 'declined'
+                : reason === 'busy' ? 'busy'
+                    : 'missed';
+        const durationSeconds = call.answered && call.answeredAt ? (Date.now() - call.answeredAt) / 1000 : 0;
+        this.privateChatService
+            .addCallLog(chatId, call.callerId, { callType: call.callType, status, durationSeconds })
+            .then(entry => this.realtime.emitToUsers([call.callerId, call.calleeId], 'newPrivateMessage', entry))
+            .catch(err => console.error('Failed to save call history:', (err as Error).message));
+
+        const missed = status === 'missed' || status === 'busy';
         if (missed) {
             this.notifications.notify(call.calleeId, {
                 type: NotificationType.MISSED_CALL,
@@ -329,6 +348,37 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         }
     }
 
+    // "typing…" in a private chat: relayed only to the other participant
+    @SubscribeMessage('privateTyping')
+    async handlePrivateTyping(
+        @ConnectedSocket() client: AuthenticatedSocket,
+        @MessageBody() data: { chatId: string; isTyping: boolean },
+    ) {
+        if (!data?.chatId) return;
+        try {
+            const peerId = await this.typingPeer(data.chatId, client.userId!);
+            this.realtime.emitToUser(peerId, 'privateTyping', {
+                chatId: data.chatId,
+                userId: client.userId,
+                isTyping: !!data.isTyping,
+            });
+        } catch {
+            // Not a participant of an accepted chat: ignore silently
+        }
+    }
+
+    private typingAccess = new Map<string, { peerId: string; expires: number }>();
+
+    private async typingPeer(chatId: string, userId: string): Promise<string> {
+        const key = `${chatId}:${userId}`;
+        const cached = this.typingAccess.get(key);
+        if (cached && cached.expires > Date.now()) return cached.peerId;
+
+        const { peerId } = await this.privateChatService.getCallPeer(chatId, userId);
+        this.typingAccess.set(key, { peerId, expires: Date.now() + TYPING_ACCESS_TTL_MS });
+        return peerId;
+    }
+
     @SubscribeMessage('typing')
     handleTyping(
         @ConnectedSocket() client: AuthenticatedSocket,
@@ -368,7 +418,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 answered: false,
                 timer: setTimeout(() => {
                     const call = this.calls.get(data.chatId);
-                    if (call && !call.answered) this.finishCall(data.chatId, true);
+                    if (call && !call.answered) this.finishCall(data.chatId, 'timeout');
                 }, MISSED_CALL_TIMEOUT_MS),
             });
 
@@ -393,6 +443,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             const call = this.calls.get(data.chatId);
             if (call && call.calleeId === client.userId) {
                 call.answered = true;
+                call.answeredAt = Date.now();
                 clearTimeout(call.timer); // no longer a candidate for "missed"
             }
             this.server.to(`user_${peerId}`).emit('callAnswered', { chatId: data.chatId, sdp: data.sdp });
@@ -430,7 +481,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             // Declining on purpose isn't "missed"; being on another call is
             const call = this.calls.get(data.chatId);
             if (call && call.calleeId === client.userId) {
-                this.finishCall(data.chatId, reason === 'busy');
+                this.finishCall(data.chatId, reason);
             }
             client.to(`user_${client.userId}`).emit('callHandledElsewhere', { chatId: data.chatId });
         } catch (error) {
@@ -450,7 +501,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             // Caller hanging up (or giving up after ringing) before an answer = missed call
             const call = this.calls.get(data.chatId);
             if (call) {
-                this.finishCall(data.chatId, !call.answered && call.callerId === client.userId);
+                this.finishCall(data.chatId, 'ended');
             }
         } catch (error) {
             client.emit('callError', { chatId: data?.chatId, message: error.message });

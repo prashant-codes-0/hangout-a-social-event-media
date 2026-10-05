@@ -20,6 +20,17 @@ export class Message extends Document {
 
   @Prop({ type: Date })
   editedAt?: Date;
+
+  // Pinned by the hangout organizer (or an admin); at most 3 per hangout
+  @Prop({ default: false })
+  pinned: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  pinnedBy?: Types.ObjectId;
+
+  @Prop({ type: Date })
+  pinnedAt?: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+MessageSchema.index({ hangoutId: 1, pinned: 1, pinnedAt: 1 });

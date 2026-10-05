@@ -24,6 +24,11 @@ export class RealtimeService {
     this.server.to(`user_${userId}`).emit(event, payload);
   }
 
+  // e.g. everyone currently viewing a hangout chat (room `hangout_<id>`)
+  emitToRoom(room: string, event: string, payload: any) {
+    this.server?.to(room).emit(event, payload);
+  }
+
   emitToUsers(userIds: string[], event: string, payload: any) {
     userIds.forEach((userId) => this.emitToUser(userId, event, payload));
   }

@@ -7,7 +7,8 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PrivateChat, PrivateChatStatus } from './schemas/private-chat.schema';
-import { PrivateMessage } from './schemas/private-message.schema';
+import { PrivateMessage, CallLogStatus } from './schemas/private-message.schema';
+import { MAX_PINNED } from './chat.service';
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
@@ -261,5 +262,88 @@ export class PrivateChatService {
     });
 
     return { chat, message };
+  }
+
+  // ---- Pinned messages (either participant; at most MAX_PINNED per chat) ----
+
+  async setPinned(chatId: string, messageId: string, userId: string, pinned: boolean) {
+    const chat = await this.getChatForParticipant(chatId, userId);
+    if (chat.status !== PrivateChatStatus.ACCEPTED) {
+      throw new ForbiddenException('This private chat has not been accepted');
+    }
+    if (!Types.ObjectId.isValid(messageId)) {
+      throw new NotFoundException('Message not found');
+    }
+    const message = await this.privateMessageModel.findById(messageId);
+    if (!message || message.chatId.toString() !== chatId) {
+      throw new NotFoundException('Message not found');
+    }
+    if (message.messageType === 'call') {
+      throw new BadRequestException('Call entries cannot be pinned');
+    }
+
+    // Pinning past the limit unpins the oldest pin
+    const unpinnedMessageIds: string[] = [];
+    if (pinned && !message.pinned) {
+      const current = await this.privateMessageModel
+        .find({ chatId: message.chatId, pinned: true })
+        .sort({ pinnedAt: 1 });
+      for (const old of current.slice(0, Math.max(0, current.length - MAX_PINNED + 1))) {
+        old.pinned = false;
+        old.pinnedBy = undefined;
+        old.pinnedAt = undefined;
+        await old.save();
+        unpinnedMessageIds.push(String(old._id));
+      }
+      message.pinned = true;
+      message.pinnedBy = userId as any;
+      message.pinnedAt = new Date();
+    } else if (!pinned) {
+      message.pinned = false;
+      message.pinnedBy = undefined;
+      message.pinnedAt = undefined;
+    }
+    await message.save();
+    await message.populate([
+      { path: 'senderId', select: 'name email' },
+      { path: 'pinnedBy', select: 'name' },
+    ]);
+
+    // Not "message": the response interceptor treats a top-level `message` key as the status text
+    return {
+      chat,
+      event: { chatId, messageId: String(message._id), pinned: message.pinned, pinnedMessage: message, unpinnedMessageIds },
+    };
+  }
+
+  async getPinned(chatId: string, userId: string) {
+    await this.getChatForParticipant(chatId, userId);
+    return this.privateMessageModel
+      .find({ chatId, pinned: true })
+      .sort({ pinnedAt: -1 })
+      .populate('senderId', 'name email')
+      .populate('pinnedBy', 'name')
+      .exec();
+  }
+
+  // ---- Call history: one 'call' message per call, written when it ends (sender = caller) ----
+
+  async addCallLog(chatId: string, callerId: string, call: { callType: 'audio' | 'video'; status: CallLogStatus; durationSeconds?: number }) {
+    const kind = call.callType === 'video' ? 'video' : 'audio';
+    const content =
+      call.status === 'completed' ? `${kind === 'video' ? 'Video' : 'Audio'} call`
+        : call.status === 'declined' ? `Declined ${kind} call`
+          : `Missed ${kind} call`;
+
+    const message = await this.privateMessageModel.create({
+      chatId,
+      senderId: callerId,
+      content,
+      messageType: 'call',
+      call: { callType: kind, status: call.status, durationSeconds: Math.max(0, Math.round(call.durationSeconds ?? 0)) },
+    });
+    await message.populate('senderId', 'name email');
+    await this.privateChatModel.updateOne({ _id: chatId }, { $set: { lastMessageAt: new Date() } });
+    return message;
   }
 }

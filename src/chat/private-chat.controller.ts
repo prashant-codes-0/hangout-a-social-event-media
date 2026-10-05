@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   Request,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -110,6 +111,33 @@ export class PrivateChatController {
       limit ? parseInt(limit) : 50,
       skip ? parseInt(skip) : 0,
     );
+  }
+
+  @Patch(':chatId/messages/:messageId/pin')
+  @ApiOperation({ summary: 'Pin or unpin a private message (either participant; max 3, oldest is replaced)' })
+  @ApiParam({ name: 'chatId', description: 'Private chat ID' })
+  @ApiParam({ name: 'messageId', description: 'Message ID' })
+  @ApiBody({ schema: { properties: { pinned: { type: 'boolean', example: true } } } })
+  @ApiResponse({ status: 200, description: '{ chatId, messageId, pinned, pinnedMessage, unpinnedMessageIds }' })
+  async pinMessage(
+    @Param('chatId') chatId: string,
+    @Param('messageId') messageId: string,
+    @Body('pinned') pinned: boolean,
+    @Request() req,
+  ) {
+    if (typeof pinned !== 'boolean') {
+      throw new BadRequestException('pinned must be true or false');
+    }
+    const { chat, event } = await this.privateChatService.setPinned(chatId, messageId, req.user.id, pinned);
+    this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'privateMessagePinned', event);
+    return event;
+  }
+
+  @Get(':chatId/pinned')
+  @ApiOperation({ summary: 'Pinned messages of a private chat, newest pin first' })
+  @ApiParam({ name: 'chatId', description: 'Private chat ID' })
+  async getPinned(@Param('chatId') chatId: string, @Request() req) {
+    return this.privateChatService.getPinned(chatId, req.user.id);
   }
 
   @Post(':chatId/messages')

@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Message } from './schemas/message.schema';
+
+// Pinned messages per chat; pinning one more unpins the oldest
+export const MAX_PINNED = 3;
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { User } from '../auth/schemas/user.schema';
 import { SendMessageDto, EditMessageDto } from './dto/chat.dto';
@@ -119,7 +122,78 @@ export class ChatService {
 
     await this.messageModel.findByIdAndDelete(messageId);
 
+    // Drop it from everyone's pinned bar
+    if (message.pinned) {
+      this.realtime.emitToRoom(`hangout_${message.hangoutId}`, 'messagePinned', {
+        hangoutId: message.hangoutId.toString(),
+        messageId,
+        pinned: false,
+      });
+    }
+
     return { message: 'Message deleted successfully', messageId };
+  }
+
+  // ---- Pinned messages (organizer or admin; at most MAX_PINNED per hangout) ----
+
+  async setPinned(messageId: string, userId: string, pinned: boolean, isAdmin = false) {
+    if (!Types.ObjectId.isValid(messageId)) {
+      throw new NotFoundException('Message not found');
+    }
+    const message = await this.messageModel.findById(messageId);
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+    const hangout = await this.hangoutModel.findById(message.hangoutId).select('createdBy');
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+    if (!isAdmin && hangout.createdBy.toString() !== userId) {
+      throw new ForbiddenException('Only the hangout organizer can pin messages');
+    }
+
+    // Pinning past the limit unpins the oldest pin
+    const unpinnedMessageIds: string[] = [];
+    if (pinned && !message.pinned) {
+      const current = await this.messageModel
+        .find({ hangoutId: message.hangoutId, pinned: true })
+        .sort({ pinnedAt: 1 });
+      for (const old of current.slice(0, Math.max(0, current.length - MAX_PINNED + 1))) {
+        old.pinned = false;
+        old.pinnedBy = undefined;
+        old.pinnedAt = undefined;
+        await old.save();
+        unpinnedMessageIds.push(String(old._id));
+      }
+      message.pinned = true;
+      message.pinnedBy = userId as any;
+      message.pinnedAt = new Date();
+    } else if (!pinned) {
+      message.pinned = false;
+      message.pinnedBy = undefined;
+      message.pinnedAt = undefined;
+    }
+    await message.save();
+    await message.populate([
+      { path: 'userId', select: 'name email' },
+      { path: 'pinnedBy', select: 'name' },
+    ]);
+
+    const hangoutId = message.hangoutId.toString();
+    // Everyone viewing the hangout chat updates their pinned bar
+    const event = { hangoutId, messageId: String(message._id), pinned: message.pinned, pinnedMessage: message, unpinnedMessageIds };
+    this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messagePinned', event);
+    // Not "message": the response interceptor treats a top-level `message` key as the status text
+    return event;
+  }
+
+  async getPinned(hangoutId: string) {
+    return this.messageModel
+      .find({ hangoutId, pinned: true })
+      .sort({ pinnedAt: -1 })
+      .populate('userId', 'name email')
+      .populate('pinnedBy', 'name')
+      .exec();
   }
 
   // Alert hangout members about a group message, except the sender and anyone currently viewing

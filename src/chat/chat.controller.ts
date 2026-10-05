@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { HangoutAccessGuard } from './guards/hangout-access.guard';
@@ -104,6 +105,31 @@ export class ChatController {
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
     return this.chatService.editMessage(messageId, editMessageDto, req.user.id, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('message/:messageId/pin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Pin or unpin a group message (hangout organizer or admin; max 3, oldest is replaced)' })
+  @ApiParam({ name: 'messageId', description: 'Message ID' })
+  @ApiBody({ schema: { properties: { pinned: { type: 'boolean', example: true } } } })
+  @ApiResponse({ status: 200, description: '{ hangoutId, messageId, pinned, pinnedMessage, unpinnedMessageIds }' })
+  @ApiResponse({ status: 403, description: 'Only the hangout organizer can pin messages' })
+  async pinMessage(@Param('messageId') messageId: string, @Body('pinned') pinned: boolean, @Request() req) {
+    if (typeof pinned !== 'boolean') {
+      throw new BadRequestException('pinned must be true or false');
+    }
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.chatService.setPinned(messageId, req.user.id, pinned, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get('hangout/:hangoutId/pinned')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Pinned messages of a hangout chat, newest pin first' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  async getPinned(@Param('hangoutId') hangoutId: string) {
+    return this.chatService.getPinned(hangoutId);
   }
 
   @UseGuards(AuthGuard('jwt'))
