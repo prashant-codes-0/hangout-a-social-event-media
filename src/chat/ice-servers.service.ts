@@ -17,7 +17,9 @@ export interface IceServersResponse {
 // How long issued TURN credentials stay valid; calls must start within this window
 const CREDENTIAL_TTL_SECONDS = 6 * 60 * 60;
 
-const DEFAULT_STUN: IceServer = { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] };
+const DEFAULT_STUN: IceServer = {
+  urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+};
 
 // WebRTC ICE servers for private-chat calls.
 //
@@ -39,13 +41,21 @@ export class IceServersService {
     try {
       const turn = await this.getTurnServers(userId);
       if (turn.length > 0) {
-        return { iceServers: [DEFAULT_STUN, ...turn], ttlSeconds: CREDENTIAL_TTL_SECONDS, relay: true };
+        return {
+          iceServers: [DEFAULT_STUN, ...turn],
+          ttlSeconds: CREDENTIAL_TTL_SECONDS,
+          relay: true,
+        };
       }
     } catch (error) {
       // Fall back to STUN so calls on friendly networks still work
-      this.logger.error(`Could not get TURN credentials: ${error.message}`);
+      this.logger.error(`Could not get TURN credentials: ${(error as Error).message}`);
     }
-    return { iceServers: [DEFAULT_STUN], ttlSeconds: CREDENTIAL_TTL_SECONDS, relay: false };
+    return {
+      iceServers: [DEFAULT_STUN],
+      ttlSeconds: CREDENTIAL_TTL_SECONDS,
+      relay: false,
+    };
   }
 
   private async getTurnServers(userId: string): Promise<IceServer[]> {
@@ -62,7 +72,9 @@ export class IceServersService {
     if (secret) {
       // TURN REST API scheme: username = "<expiry>:<user>", credential = base64(HMAC-SHA1(secret, username))
       const username = `${Math.floor(Date.now() / 1000) + CREDENTIAL_TTL_SECONDS}:${userId}`;
-      const credential = createHmac('sha1', secret).update(username).digest('base64');
+      const credential = createHmac('sha1', secret)
+        .update(username)
+        .digest('base64');
       return [{ urls, username, credential }];
     }
 
@@ -72,7 +84,9 @@ export class IceServersService {
       return [{ urls, username, credential }];
     }
 
-    this.logger.warn('TURN_URLS is set but neither TURN_SECRET nor TURN_USERNAME/TURN_CREDENTIAL are');
+    this.logger.warn(
+      'TURN_URLS is set but neither TURN_SECRET nor TURN_USERNAME/TURN_CREDENTIAL are',
+    );
     return [];
   }
 
@@ -81,7 +95,10 @@ export class IceServersService {
       `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
       {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ ttl: CREDENTIAL_TTL_SECONDS }),
       },
     );
@@ -90,21 +107,25 @@ export class IceServersService {
     }
 
     const data = await response.json();
-    const servers: IceServer[] = Array.isArray(data.iceServers) ? data.iceServers : [data.iceServers];
+    const servers: IceServer[] = Array.isArray(data.iceServers)
+      ? data.iceServers
+      : [data.iceServers];
 
     // Browsers block port 53, and those URLs just time out (per Cloudflare's docs)
     return servers
-      .map(server => ({
+      .map((server) => ({
         ...server,
-        urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => !/:53(\?|$)/.test(url)),
+        urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(
+          (url) => !/:53(\?|$)/.test(url),
+        ),
       }))
-      .filter(server => server.urls.length > 0 && server.username);
+      .filter((server) => server.urls.length > 0 && server.username);
   }
 
   private turnUrls(): string[] {
     return (this.config.get<string>('TURN_URLS') || '')
       .split(',')
-      .map(url => url.trim())
+      .map((url) => url.trim())
       .filter(Boolean);
   }
 }

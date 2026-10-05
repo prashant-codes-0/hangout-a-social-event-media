@@ -13,6 +13,7 @@ import { PrivateMessage, PrivateMessageSchema } from './schemas/private-message.
 import { PrivateChatService } from './private-chat.service';
 import { PrivateChatController } from './private-chat.controller';
 import { IceServersService } from './ice-servers.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { IceServersService } from './ice-servers.service';
       }),
       inject: [ConfigService],
     }),
+    NotificationsModule,
   ],
   providers: [ChatService, ChatGateway, PrivateChatService, IceServersService],
   controllers: [ChatController, PrivateChatController],

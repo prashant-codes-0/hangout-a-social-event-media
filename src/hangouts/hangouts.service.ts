@@ -5,6 +5,8 @@ import { Hangout } from './schemas/hangout.schema';
 import { JoinRequest, JoinRequestStatus } from './schemas/join-request.schema';
 import { User, UserRole } from '../auth/schemas/user.schema';
 import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
 
 @Injectable()
 export class HangoutsService {
@@ -15,7 +17,35 @@ export class HangoutsService {
     private joinRequestModel: Model<JoinRequest>,
     @InjectModel(User.name)
     private userModel: Model<User>,
+    private notifications: NotificationsService,
   ) { }
+
+  // ---- Join request alerts (fire and forget; NotificationsService never throws) ----
+
+  private async alertJoinRequest(hangout: Hangout, requesterId: string) {
+    const requester = await this.userModel.findById(requesterId).select('name').lean();
+    this.notifications.notify(hangout.createdBy.toString(), {
+      type: NotificationType.JOIN_REQUEST,
+      actorId: requesterId,
+      hangoutId: String(hangout._id),
+      title: 'New join request',
+      body: `${requester?.name ?? 'Someone'} wants to join ${hangout.title}`,
+      link: '/hangouts/manage',
+    });
+  }
+
+  private alertJoinDecision(hangout: Hangout, requesterId: string, approved: boolean, decidedById: string) {
+    this.notifications.notify(requesterId, {
+      type: approved ? NotificationType.JOIN_APPROVED : NotificationType.JOIN_REJECTED,
+      actorId: decidedById,
+      hangoutId: String(hangout._id),
+      title: approved ? 'You\'re in! 🎉' : 'Join request declined',
+      body: approved
+        ? `Your request to join ${hangout.title} was approved`
+        : `Your request to join ${hangout.title} wasn't accepted this time`,
+      link: `/hangouts/details/${hangout._id}`,
+    });
+  }
 
   async create(createHangoutDto: CreateHangoutDto, userId: string) {
     // Role validation is now handled by VerifiedUserGuard at the controller level
@@ -252,6 +282,7 @@ export class HangoutsService {
     // Add user to requestedBy array
     hangout.requestedBy.push(userId as any);
     await hangout.save();
+    this.alertJoinRequest(hangout, userId);
 
     return {
       message: 'Join request sent successfully',
@@ -292,6 +323,10 @@ export class HangoutsService {
       }
     }
 
+    if (status === JoinRequestStatus.APPROVED || status === JoinRequestStatus.REJECTED) {
+      this.alertJoinDecision(hangout, joinRequest.userId.toString(), status === JoinRequestStatus.APPROVED, userId);
+    }
+
     return joinRequest;
   }
 
@@ -330,6 +365,7 @@ export class HangoutsService {
     }
 
     await hangout.save();
+    this.alertJoinDecision(hangout, requestedUserId, action === 'approve', currentUserId);
 
     return {
       message: `Join request ${action}d successfully`,

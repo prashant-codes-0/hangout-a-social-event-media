@@ -6,6 +6,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { HangoutsModule } from './hangouts/hangouts.module';
 import { ChatModule } from './chat/chat.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { ChatModule } from './chat/chat.module';
       }),
       inject: [ConfigService],
     }),
+    RealtimeModule,
+    NotificationsModule,
     AuthModule,
     HangoutsModule,
     ChatModule,

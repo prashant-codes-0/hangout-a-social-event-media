@@ -5,6 +5,9 @@ import { Message } from './schemas/message.schema';
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { User } from '../auth/schemas/user.schema';
 import { SendMessageDto, EditMessageDto } from './dto/chat.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class ChatService {
@@ -15,6 +18,8 @@ export class ChatService {
     private hangoutModel: Model<Hangout>,
     @InjectModel(User.name)
     private userModel: Model<User>,
+    private notifications: NotificationsService,
+    private realtime: RealtimeService,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, userId: string) {
@@ -115,6 +120,36 @@ export class ChatService {
     await this.messageModel.findByIdAndDelete(messageId);
 
     return { message: 'Message deleted successfully', messageId };
+  }
+
+  // Alert hangout members about a group message, except the sender and anyone currently viewing
+  // this hangout's chat (they're in its socket room). Grouped: one unread alert per hangout.
+  // Never throws: alerts must not break sending.
+  async notifyGroupMessage(message: Message, senderId: string) {
+    try {
+      const hangoutId = message.hangoutId.toString();
+      const hangout = await this.hangoutModel.findById(hangoutId).select('title attendees createdBy').lean();
+      if (!hangout) return;
+
+      const viewing = await this.realtime.userIdsInRoom(`hangout_${hangoutId}`);
+      const memberIds = new Set([hangout.createdBy, ...hangout.attendees].map(id => id.toString()));
+      const senderName = (message.userId as any)?.name ?? 'Someone';
+
+      await Promise.all(
+        [...memberIds]
+          .filter(id => id !== senderId && !viewing.has(id))
+          .map(id => this.notifications.notifyGrouped(id, {
+            type: NotificationType.GROUP_MESSAGE,
+            actorId: senderId,
+            hangoutId,
+            title: `New messages in ${hangout.title}`,
+            body: `${senderName}: ${message.content}`,
+            link: `/hangouts/details/${hangoutId}`,
+          })),
+      );
+    } catch (error) {
+      console.error('Failed to send group message alerts:', error.message);
+    }
   }
 
   async checkUserAccess(hangoutId: string, userId: string): Promise<boolean> {

@@ -9,6 +9,8 @@ import { Model, Types } from 'mongoose';
 import { PrivateChat, PrivateChatStatus } from './schemas/private-chat.schema';
 import { PrivateMessage } from './schemas/private-message.schema';
 import { Hangout } from '../hangouts/schemas/hangout.schema';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
 
 @Injectable()
 export class PrivateChatService {
@@ -19,6 +21,7 @@ export class PrivateChatService {
     private privateMessageModel: Model<PrivateMessage>,
     @InjectModel(Hangout.name)
     private hangoutModel: Model<Hangout>,
+    private notifications: NotificationsService,
   ) {}
 
   private isMember(hangout: Hangout, userId: string): boolean {
@@ -87,13 +90,20 @@ export class PrivateChatService {
         // The other user already asked us - treat this as accepting their request
         existing.status = PrivateChatStatus.ACCEPTED;
         await existing.save();
+        await this.populateChat(existing);
+        this.alertAccepted(existing, hangout, requesterId);
+        return existing;
       } else if (existing.status === PrivateChatStatus.DECLINED) {
         // Allow asking again after a decline
         existing.requester = new Types.ObjectId(requesterId);
         existing.recipient = new Types.ObjectId(recipientId);
         existing.status = PrivateChatStatus.PENDING;
         await existing.save();
+        await this.populateChat(existing);
+        this.alertRequested(existing, hangout);
+        return existing;
       }
+      // Already pending from us, or already accepted: no new alert
       return this.populateChat(existing);
     }
 
@@ -103,7 +113,46 @@ export class PrivateChatService {
       recipient: recipientId,
     });
     await chat.save();
-    return this.populateChat(chat);
+    await this.populateChat(chat);
+    this.alertRequested(chat, hangout);
+    return chat;
+  }
+
+  // ---- Alerts (fire and forget; NotificationsService never throws) ----
+
+  private chatLink(chat: PrivateChat) {
+    return `/hangouts/details/${chat.hangoutId}?chat=${chat._id}`;
+  }
+
+  // Recipient: "<requester> wants to chat privately"
+  private alertRequested(chat: PrivateChat, hangout: Hangout) {
+    const requester: any = chat.requester;
+    this.notifications.notify((chat.recipient as any)._id.toString(), {
+      type: NotificationType.CHAT_REQUEST,
+      actorId: requester._id.toString(),
+      hangoutId: String(hangout._id),
+      chatId: String(chat._id),
+      title: 'New private chat request',
+      body: `${requester.name} wants to chat privately · ${hangout.title}`,
+      link: this.chatLink(chat),
+    });
+  }
+
+  // Original requester: "<acceptedBy> accepted your chat request"
+  private alertAccepted(chat: PrivateChat, hangout: { _id: any; title: string } | null, acceptedById: string) {
+    const requester: any = chat.requester;
+    const recipient: any = chat.recipient;
+    const accepter = recipient._id.toString() === acceptedById ? recipient : requester;
+    const notifyUser = accepter === recipient ? requester : recipient;
+    this.notifications.notify(notifyUser._id.toString(), {
+      type: NotificationType.CHAT_ACCEPTED,
+      actorId: acceptedById,
+      hangoutId: chat.hangoutId.toString(),
+      chatId: String(chat._id),
+      title: 'Chat request accepted',
+      body: `${accepter.name} accepted your private chat${hangout ? ` · ${hangout.title}` : ''}`,
+      link: this.chatLink(chat),
+    });
   }
 
   async respondToRequest(chatId: string, userId: string, accept: boolean) {
@@ -118,7 +167,14 @@ export class PrivateChatService {
 
     chat.status = accept ? PrivateChatStatus.ACCEPTED : PrivateChatStatus.DECLINED;
     await chat.save();
-    return this.populateChat(chat);
+    await this.populateChat(chat);
+
+    // Declines are quiet on purpose; acceptances are worth an alert
+    if (accept) {
+      const hangout = await this.hangoutModel.findById(chat.hangoutId).select('title').lean();
+      this.alertAccepted(chat, hangout as any, userId);
+    }
+    return chat;
   }
 
   // Validates a call between the two participants of an accepted chat and returns the other participant.
@@ -190,6 +246,19 @@ export class PrivateChatService {
 
     chat.lastMessageAt = new Date();
     await chat.save();
+
+    // One unread alert per chat that keeps a count, rather than one per message
+    const recipientId = chat.requester.toString() === userId ? chat.recipient.toString() : chat.requester.toString();
+    const senderName = (message.senderId as any)?.name ?? 'Someone';
+    this.notifications.notifyGrouped(recipientId, {
+      type: NotificationType.PRIVATE_MESSAGE,
+      actorId: userId,
+      hangoutId: chat.hangoutId.toString(),
+      chatId: String(chat._id),
+      title: `New message from ${senderName}`,
+      body: content,
+      link: this.chatLink(chat),
+    });
 
     return { chat, message };
   }

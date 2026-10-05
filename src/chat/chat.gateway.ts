@@ -6,6 +6,7 @@ import {
     ConnectedSocket,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 
@@ -13,8 +14,25 @@ import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 import { PrivateChatService } from './private-chat.service';
 import { SendMessageDto, EditMessageDto } from './dto/chat.dto';
+import { RealtimeService } from '../realtime/realtime.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/schemas/notification.schema';
 
 type CallType = 'audio' | 'video';
+
+// A call that is ringing or in progress, used to tell the callee about calls they missed
+interface TrackedCall {
+    callerId: string;
+    calleeId: string;
+    callerName: string;
+    hangoutId: string;
+    callType: CallType;
+    answered: boolean;
+    timer: ReturnType<typeof setTimeout>;
+}
+
+// Clients give up ringing after 45s; this is a server-side backstop
+const MISSED_CALL_TIMEOUT_MS = 60_000;
 
 interface AuthenticatedSocket extends Socket {
     userId?: string;
@@ -27,19 +45,27 @@ interface AuthenticatedSocket extends Socket {
     },
     namespace: '/chat',
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer()
     server: Server;
 
     private connectedUsers = new Map<string, string>(); // socketId -> userId
     private onlineSocketCounts = new Map<string, number>(); // userId -> number of connected sockets
     private lastSeen = new Map<string, Date>(); // userId -> when their last socket disconnected
+    private calls = new Map<string, TrackedCall>(); // chatId -> call
 
     constructor(
         private chatService: ChatService,
         private privateChatService: PrivateChatService,
         private jwtService: JwtService,
+        private realtime: RealtimeService,
+        private notifications: NotificationsService,
     ) { }
+
+    afterInit(server: Server) {
+        // Let other modules (notifications) push events to users
+        this.realtime.attach(server);
+    }
 
     async handleConnection(client: AuthenticatedSocket) {
         try {
@@ -56,6 +82,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const payload = this.jwtService.verify(token);
             client.userId = payload.sub;
             client.user = payload;
+            // Also on socket.data so it is readable via fetchSockets() (who is viewing a hangout chat)
+            client.data.userId = payload.sub;
 
             this.connectedUsers.set(client.id, client.userId!);
 
@@ -78,7 +106,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Push an event to specific users (used for private chats)
     emitToUsers(userIds: string[], event: string, payload: any) {
-        userIds.forEach(userId => this.server.to(`user_${userId}`).emit(event, payload));
+        this.realtime.emitToUsers(userIds, event, payload);
     }
 
     // Online status + last seen for the given users (in-memory, per server instance)
@@ -108,9 +136,45 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             } else {
                 this.onlineSocketCounts.set(client.userId, sockets);
             }
+
+            if (sockets <= 0) {
+                this.endCallsForOfflineUser(client.userId);
+            }
         }
 
         console.log(`User ${client.userId} disconnected from chat`);
+    }
+
+    // The user has no sockets left (closed the app, lost connection): end their calls so the other
+    // side stops ringing, and record a missed call if they were the one calling
+    private endCallsForOfflineUser(userId: string) {
+        this.calls.forEach((call, chatId) => {
+            if (call.callerId !== userId && call.calleeId !== userId) return;
+            const otherId = call.callerId === userId ? call.calleeId : call.callerId;
+            this.realtime.emitToUser(otherId, 'callEnded', { chatId });
+            this.finishCall(chatId, call.callerId === userId && !call.answered);
+        });
+    }
+
+    // Stop tracking a call; optionally tell the callee they missed it
+    private finishCall(chatId: string, missed: boolean) {
+        const call = this.calls.get(chatId);
+        if (!call) return;
+        clearTimeout(call.timer);
+        this.calls.delete(chatId);
+
+        if (missed) {
+            this.notifications.notify(call.calleeId, {
+                type: NotificationType.MISSED_CALL,
+                actorId: call.callerId,
+                hangoutId: call.hangoutId,
+                chatId,
+                callType: call.callType,
+                title: `Missed ${call.callType === 'video' ? 'video' : 'audio'} call`,
+                body: `${call.callerName} tried to call you`,
+                link: `/hangouts/details/${call.hangoutId}?chat=${chatId}`,
+            });
+        }
     }
 
     @SubscribeMessage('joinHangout')
@@ -166,7 +230,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() sendMessageDto: SendMessageDto,
     ) {
         try {
+            // The REST endpoint is protected by HangoutAccessGuard; the socket path needs the same check
+            const hasAccess = await this.chatService.checkUserAccess(sendMessageDto.hangoutId, client.userId!);
+            if (!hasAccess) {
+                client.emit('error', { message: 'You must be an attendee or creator of this hangout to send messages.' });
+                return;
+            }
+
             const message = await this.chatService.sendMessage(sendMessageDto, client.userId!);
+            // Alert members who aren't looking at this chat (fire and forget)
+            this.chatService.notifyGroupMessage(message, client.userId!);
 
             // Broadcast message to other users in the hangout room (excluding sender)
             client.to(`hangout_${sendMessageDto.hangoutId}`).emit('newMessage', {
@@ -280,8 +353,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: { chatId: string; sdp: any; callType: CallType },
     ) {
         try {
-            const { me, peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!, true);
+            const { chat, me, peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!, true);
             const callType: CallType = data.callType === 'video' ? 'video' : 'audio';
+
+            // Track it so an unanswered call becomes a "missed call" alert
+            const previous = this.calls.get(data.chatId);
+            if (previous) clearTimeout(previous.timer);
+            this.calls.set(data.chatId, {
+                callerId: client.userId!,
+                calleeId: peerId,
+                callerName: me.name,
+                hangoutId: chat.hangoutId.toString(),
+                callType,
+                answered: false,
+                timer: setTimeout(() => {
+                    const call = this.calls.get(data.chatId);
+                    if (call && !call.answered) this.finishCall(data.chatId, true);
+                }, MISSED_CALL_TIMEOUT_MS),
+            });
 
             this.server.to(`user_${peerId}`).emit('incomingCall', {
                 chatId: data.chatId,
@@ -301,6 +390,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     ) {
         try {
             const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
+            const call = this.calls.get(data.chatId);
+            if (call && call.calleeId === client.userId) {
+                call.answered = true;
+                clearTimeout(call.timer); // no longer a candidate for "missed"
+            }
             this.server.to(`user_${peerId}`).emit('callAnswered', { chatId: data.chatId, sdp: data.sdp });
 
             // Stop the call ringing in this user's other tabs/devices
@@ -330,10 +424,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     ) {
         try {
             const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
-            this.server.to(`user_${peerId}`).emit('callRejected', {
-                chatId: data.chatId,
-                reason: data.reason === 'busy' ? 'busy' : 'declined',
-            });
+            const reason = data.reason === 'busy' ? 'busy' : 'declined';
+            this.server.to(`user_${peerId}`).emit('callRejected', { chatId: data.chatId, reason });
+
+            // Declining on purpose isn't "missed"; being on another call is
+            const call = this.calls.get(data.chatId);
+            if (call && call.calleeId === client.userId) {
+                this.finishCall(data.chatId, reason === 'busy');
+            }
             client.to(`user_${client.userId}`).emit('callHandledElsewhere', { chatId: data.chatId });
         } catch (error) {
             client.emit('callError', { chatId: data?.chatId, message: error.message });
@@ -348,6 +446,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         try {
             const { peerId } = await this.privateChatService.getCallPeer(data.chatId, client.userId!);
             this.server.to(`user_${peerId}`).emit('callEnded', { chatId: data.chatId });
+
+            // Caller hanging up (or giving up after ringing) before an answer = missed call
+            const call = this.calls.get(data.chatId);
+            if (call) {
+                this.finishCall(data.chatId, !call.answered && call.callerId === client.userId);
+            }
         } catch (error) {
             client.emit('callError', { chatId: data?.chatId, message: error.message });
         }

@@ -44,7 +44,10 @@ export class ChatController {
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   @ApiBody({ type: SendMessageDto })
   async sendMessage(@Body() sendMessageDto: SendMessageDto, @Request() req) {
-    return this.chatService.sendMessage(sendMessageDto, req.user.id);
+    const message = await this.chatService.sendMessage(sendMessageDto, req.user.id);
+    // Alert members who aren't looking at this chat (fire and forget)
+    this.chatService.notifyGroupMessage(message, req.user.id);
+    return message;
   }
 
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)

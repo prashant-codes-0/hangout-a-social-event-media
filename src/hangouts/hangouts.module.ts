@@ -5,6 +5,7 @@ import { HangoutsController } from './hangouts.controller';
 import { Hangout, HangoutSchema } from './schemas/hangout.schema';
 import { JoinRequest, JoinRequestSchema } from './schemas/join-request.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
       { name: JoinRequest.name, schema: JoinRequestSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    NotificationsModule,
   ],
   providers: [HangoutsService],
   controllers: [HangoutsController],
