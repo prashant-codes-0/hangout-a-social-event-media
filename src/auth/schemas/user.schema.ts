@@ -58,6 +58,14 @@ export class User extends Document {
   @Prop()
   passwordResetExpires?: Date;
 
+  /** External account id when the user signs in with Google. */
+  @Prop({ index: true, sparse: true })
+  googleId?: string;
+
+  /** External account id when the user signs in with Facebook. */
+  @Prop({ index: true, sparse: true })
+  facebookId?: string;
+
   @Prop({ type: UserSettingsSchema, default: () => ({}) })
   settings: UserSettings;
 }
