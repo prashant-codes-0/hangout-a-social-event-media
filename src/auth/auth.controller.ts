@@ -1,12 +1,27 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+  Patch,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
 import { VerifyUserDto } from './dto/verify-user.dto';
 import { VerifyOnlyDto } from './dto/verify-only.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { SendOTPDto, VerifyOTPDto, ResendOTPDto } from './dto/otp.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 import { UpdateSettingsDto } from './dto/settings.dto';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { ApiResponseDto } from '../common/dto/api-response.dto';
@@ -14,13 +29,18 @@ import { ApiResponseDto } from '../common/dto/api-response.dto';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) { }
+  constructor(private authService: AuthService) {}
 
   @Get('me/settings')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Your app settings (notification sounds, call ringtone)' })
-  @ApiResponse({ status: 200, description: '{ notificationSounds, callRingtone }' })
+  @ApiOperation({
+    summary: 'Your app settings (notification sounds, call ringtone)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '{ notificationSounds, callRingtone }',
+  })
   getSettings(@Request() req) {
     return this.authService.getSettings(req.user.id);
   }
@@ -28,7 +48,9 @@ export class AuthController {
   @Patch('me/settings')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Update your app settings (send only the fields to change)' })
+  @ApiOperation({
+    summary: 'Update your app settings (send only the fields to change)',
+  })
   @ApiBody({ type: UpdateSettingsDto })
   @ApiResponse({ status: 200, description: 'The full, updated settings' })
   @ApiResponse({ status: 400, description: 'Invalid or unknown setting' })
@@ -41,12 +63,12 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     description: 'User successfully registered',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiResponse({
     status: 409,
     description: 'User with this email already exists',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiBody({ type: SignUpDto })
   async signUp(@Body() signUpDto: SignUpDto) {
@@ -59,12 +81,12 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'User successfully signed in',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiResponse({
     status: 401,
     description: 'Invalid credentials',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiBody({ type: SignInDto })
   async signIn(@Request() req, @Body() signInDto: SignInDto) {
@@ -78,17 +100,17 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'List of all users',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiResponse({
     status: 401,
     description: 'Unauthorized',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   @ApiResponse({
     status: 403,
     description: 'Admin access required',
-    type: ApiResponseDto
+    type: ApiResponseDto,
   })
   async getAllUsers() {
     return this.authService.getAllUsers();
@@ -105,13 +127,18 @@ export class AuthController {
   @ApiBody({ type: VerifyUserDto })
   async verifyUser(@Body() verifyUserDto: VerifyUserDto) {
     // preserve previous behavior: change role and verify
-    return this.authService.changeRoleAndVerify(verifyUserDto.userId, verifyUserDto.role);
+    return this.authService.changeRoleAndVerify(
+      verifyUserDto.userId,
+      verifyUserDto.role,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Patch('verify-only')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Verify user only with OTP (admin only) - does not change role' })
+  @ApiOperation({
+    summary: 'Verify user only with OTP (admin only) - does not change role',
+  })
   @ApiResponse({ status: 200, description: 'User successfully verified' })
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP code' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -119,13 +146,16 @@ export class AuthController {
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiBody({ type: VerifyOnlyDto })
   async verifyUserOnly(@Body() verifyOnlyDto: VerifyOnlyDto) {
-    return this.authService.verifyUserOnly(verifyOnlyDto.userId, verifyOnlyDto.otpCode);
+    return this.authService.verifyUserOnly(
+      verifyOnlyDto.userId,
+      verifyOnlyDto.otpCode,
+    );
   }
 
   @Post('send-otp')
   @ApiOperation({ summary: 'Send OTP to user email for verification' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'OTP sent successfully',
     schema: {
       example: {
@@ -133,10 +163,10 @@ export class AuthController {
         message: 'OTP sent successfully to your email',
         data: {
           email: 'user@example.com',
-          expiresIn: '10 minutes'
-        }
-      }
-    }
+          expiresIn: '10 minutes',
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'User is already verified' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -147,8 +177,8 @@ export class AuthController {
 
   @Post('verify-otp')
   @ApiOperation({ summary: 'Verify user email with OTP code' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Email verified successfully',
     schema: {
       example: {
@@ -158,10 +188,10 @@ export class AuthController {
           userId: '507f1f77bcf86cd799439011',
           name: 'John Doe',
           email: 'user@example.com',
-          verified: true
-        }
-      }
-    }
+          verified: true,
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP code' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -172,8 +202,8 @@ export class AuthController {
 
   @Post('resend-otp')
   @ApiOperation({ summary: 'Resend OTP to user email' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'OTP resent successfully',
     schema: {
       example: {
@@ -181,15 +211,43 @@ export class AuthController {
         message: 'OTP sent successfully to your email',
         data: {
           email: 'user@example.com',
-          expiresIn: '10 minutes'
-        }
-      }
-    }
+          expiresIn: '10 minutes',
+        },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'User is already verified' })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiBody({ type: ResendOTPDto })
   async resendOTP(@Body() resendOTPDto: ResendOTPDto) {
     return this.authService.resendOTP(resendOTPDto.email);
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Email a one-time password reset link' })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Reset link sent (same reply whether or not the account exists)',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid email format' })
+  @ApiResponse({ status: 503, description: 'The email could not be sent' })
+  @ApiBody({ type: ForgotPasswordDto })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto.email);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({
+    summary: 'Set a new password using the token from the reset email',
+  })
+  @ApiResponse({ status: 201, description: 'Password updated' })
+  @ApiResponse({ status: 400, description: 'Token invalid or expired' })
+  @ApiBody({ type: ResetPasswordDto })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(
+      resetPasswordDto.token,
+      resetPasswordDto.newPassword,
+    );
   }
 }

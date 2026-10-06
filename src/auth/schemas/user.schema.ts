@@ -32,10 +32,10 @@ export class User extends Document {
   @Prop({ required: true })
   passwordHash: string;
 
-  @Prop({ 
-    type: String, 
-    enum: UserRole, 
-    default: UserRole.USER 
+  @Prop({
+    type: String,
+    enum: UserRole,
+    default: UserRole.USER,
   })
   role: UserRole;
 
@@ -47,6 +47,16 @@ export class User extends Document {
 
   @Prop()
   otpExpiry?: Date;
+
+  /**
+   * Password reset token, stored as a SHA-256 digest. The readable token only
+   * ever exists inside the reset email, so a leaked database row is useless.
+   */
+  @Prop({ index: true })
+  passwordResetToken?: string;
+
+  @Prop()
+  passwordResetExpires?: Date;
 
   @Prop({ type: UserSettingsSchema, default: () => ({}) })
   settings: UserSettings;

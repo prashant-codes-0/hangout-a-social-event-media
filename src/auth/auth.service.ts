@@ -1,12 +1,23 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { User, UserRole } from './schemas/user.schema';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
 import { UpdateSettingsDto, SettingsResponse } from './dto/settings.dto';
 import { EmailService } from '../common/services/email.service';
+
+/** Password reset links live this long, and each link works exactly once. */
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -15,6 +26,7 @@ export class AuthService {
     private userModel: Model<User>,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -88,7 +100,7 @@ export class AuthService {
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userModel.findOne({ email });
-    if (user && await bcrypt.compare(password, user.passwordHash)) {
+    if (user && (await bcrypt.compare(password, user.passwordHash))) {
       const { passwordHash, ...result } = user.toObject();
       return result;
     }
@@ -99,19 +111,102 @@ export class AuthService {
     return this.userModel.findById(id);
   }
 
+  // ---- Password reset ----
+
+  /**
+   * Emails a one-time reset link.
+   *
+   * Always answers with the same message whether or not the account exists, so
+   * this endpoint cannot be used to discover which addresses are registered.
+   */
+  async forgotPassword(email: string) {
+    const response = {
+      message:
+        'If that address has an account, a password reset link is on its way.',
+    };
+
+    const user = await this.userModel.findOne({ email });
+    if (!user) {
+      return response;
+    }
+
+    // The email carries the readable token; only its digest is stored.
+    const token = randomBytes(32).toString('hex');
+    user.passwordResetToken = createHash('sha256').update(token).digest('hex');
+    user.passwordResetExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    await user.save();
+
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:4200',
+    );
+    const resetUrl = `${frontendUrl}/auth/reset-password?token=${token}`;
+
+    await this.emailService.sendPasswordResetEmail(
+      user.email,
+      user.name,
+      resetUrl,
+      RESET_TOKEN_TTL_MS / 60000,
+    );
+
+    return response;
+  }
+
+  /**
+   * Applies the new password if the token matches and has not expired.
+   * The update also clears the token (single use) and any pending OTP.
+   */
+  async resetPassword(token: string, newPassword: string) {
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    const user = await this.userModel.findOneAndUpdate(
+      {
+        passwordResetToken: createHash('sha256').update(token).digest('hex'),
+        passwordResetExpires: { $gt: new Date() },
+      },
+      {
+        $set: { passwordHash },
+        $unset: {
+          passwordResetToken: '',
+          passwordResetExpires: '',
+          otpCode: '',
+          otpExpiry: '',
+        },
+      },
+    );
+
+    if (!user) {
+      throw new BadRequestException(
+        'This reset link is invalid or has expired. Please request a new one.',
+      );
+    }
+
+    return {
+      message: 'Password updated. You can now sign in with your new password.',
+    };
+  }
+
   // ---- App settings (per account) ----
 
   async getSettings(userId: string): Promise<SettingsResponse> {
-    const user = await this.userModel.findById(userId).select('settings').lean();
+    const user = await this.userModel
+      .findById(userId)
+      .select('settings')
+      .lean();
     if (!user) throw new NotFoundException('User not found');
     return this.withDefaults(user.settings);
   }
 
-  async updateSettings(userId: string, dto: UpdateSettingsDto): Promise<SettingsResponse> {
+  async updateSettings(
+    userId: string,
+    dto: UpdateSettingsDto,
+  ): Promise<SettingsResponse> {
     // Only touch the fields that were sent
     const changes: Record<string, boolean> = {};
-    if (typeof dto.notificationSounds === 'boolean') changes['settings.notificationSounds'] = dto.notificationSounds;
-    if (typeof dto.callRingtone === 'boolean') changes['settings.callRingtone'] = dto.callRingtone;
+    if (typeof dto.notificationSounds === 'boolean')
+      changes['settings.notificationSounds'] = dto.notificationSounds;
+    if (typeof dto.callRingtone === 'boolean')
+      changes['settings.callRingtone'] = dto.callRingtone;
 
     const user = await this.userModel
       .findByIdAndUpdate(userId, { $set: changes }, { new: true })
@@ -122,14 +217,14 @@ export class AuthService {
   }
 
   // Users created before settings existed have none stored: fill in the defaults
-  private withDefaults(settings?: Partial<SettingsResponse> | null): SettingsResponse {
+  private withDefaults(
+    settings?: Partial<SettingsResponse> | null,
+  ): SettingsResponse {
     return {
       notificationSounds: settings?.notificationSounds ?? true,
       callRingtone: settings?.callRingtone ?? true,
     };
   }
-
-
 
   /**
    * Change the user's role and mark them verified.
