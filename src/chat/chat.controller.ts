@@ -24,7 +24,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { SendMessageDto, EditMessageDto, MessageResponseDto } from './dto/chat.dto';
+import { SendMessageDto, EditMessageDto, MessageResponseDto, ReactDto, MarkReadDto } from './dto/chat.dto';
 
 @ApiTags('Chat')
 @Controller('chat')
@@ -130,6 +130,30 @@ export class ChatController {
   @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
   async getPinned(@Param('hangoutId') hangoutId: string) {
     return this.chatService.getPinned(hangoutId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('message/:messageId/reactions')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Toggle your reaction (one emoji) on a group message' })
+  @ApiParam({ name: 'messageId', description: 'Message ID' })
+  @ApiBody({ type: ReactDto })
+  @ApiResponse({ status: 200, description: '{ hangoutId, messageId, reactions: { emoji: userIds[] } }' })
+  @ApiResponse({ status: 400, description: 'Not a single emoji, or too many different reactions' })
+  @ApiResponse({ status: 403, description: 'Not part of this hangout' })
+  async react(@Param('messageId') messageId: string, @Body() dto: ReactDto, @Request() req) {
+    return this.chatService.toggleReaction(messageId, req.user.id, dto.emoji);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Post('hangout/:hangoutId/read')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Mark messages up to and including the given one as read (read receipts)' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiBody({ type: MarkReadDto })
+  @ApiResponse({ status: 201, description: '{ updated: number }' })
+  async markRead(@Param('hangoutId') hangoutId: string, @Body() dto: MarkReadDto, @Request() req) {
+    return this.chatService.markRead(hangoutId, req.user.id, dto.upToMessageId);
   }
 
   @UseGuards(AuthGuard('jwt'))

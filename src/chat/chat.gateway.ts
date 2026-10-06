@@ -260,29 +260,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             // Alert members who aren't looking at this chat (fire and forget)
             this.chatService.notifyGroupMessage(message, client.userId!);
 
+            // Full message (incl. replyTo, reactions, readBy), with reactions as a plain object
+            const payload = message.toJSON();
+
             // Broadcast message to other users in the hangout room (excluding sender)
-            client.to(`hangout_${sendMessageDto.hangoutId}`).emit('newMessage', {
-                _id: message._id,
-                hangoutId: message.hangoutId,
-                userId: message.userId,
-                content: message.content,
-                messageType: message.messageType,
-                isEdited: message.isEdited,
-                createdAt: (message as any).createdAt,
-                updatedAt: (message as any).updatedAt,
-            });
+            client.to(`hangout_${sendMessageDto.hangoutId}`).emit('newMessage', payload);
 
             // Send confirmation back to sender
-            client.emit('messageSent', {
-                _id: message._id,
-                hangoutId: message.hangoutId,
-                userId: message.userId,
-                content: message.content,
-                messageType: message.messageType,
-                isEdited: message.isEdited,
-                createdAt: (message as any).createdAt,
-                updatedAt: (message as any).updatedAt,
-            });
+            client.emit('messageSent', payload);
 
         } catch (error) {
             client.emit('error', { message: error.message });

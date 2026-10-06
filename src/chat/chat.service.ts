@@ -1,10 +1,18 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message } from './schemas/message.schema';
 
 // Pinned messages per chat; pinning one more unpins the oldest
 export const MAX_PINNED = 3;
+
+// Length of the quoted text kept with a reply
+const REPLY_SNIPPET_LENGTH = 140;
+// Different emoji allowed on one message
+const MAX_REACTION_KINDS = 20;
+// A single emoji, optionally with skin tone / gender / ZWJ sequences / keycaps / flags
+const EMOJI =
+  /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]️?⃣)(?:\p{Emoji_Modifier}|️|‍(?:\p{Extended_Pictographic}|\p{Regional_Indicator})|\p{Regional_Indicator}|⃣)*$/u;
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { User } from '../auth/schemas/user.schema';
 import { SendMessageDto, EditMessageDto } from './dto/chat.dto';
@@ -26,7 +34,7 @@ export class ChatService {
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, userId: string) {
-    const { hangoutId, content, messageType = 'text' } = sendMessageDto;
+    const { hangoutId, content, messageType = 'text', replyToId } = sendMessageDto;
 
     // Access validation is now handled by HangoutAccessGuard at the controller level
     // Create message
@@ -35,14 +43,37 @@ export class ChatService {
       userId,
       content,
       messageType,
+      replyTo: replyToId ? await this.replyPreview(hangoutId, replyToId) : undefined,
     });
 
     await message.save();
 
     // Populate user info for response
     await message.populate('userId', 'name email');
-    
+
     return message;
+  }
+
+  // Snapshot of the replied-to message; it must be in the same hangout
+  private async replyPreview(hangoutId: string, replyToId: string) {
+    // The socket path isn't covered by the HTTP ValidationPipe
+    if (!Types.ObjectId.isValid(replyToId)) {
+      throw new BadRequestException('Invalid message to reply to');
+    }
+    const original = await this.messageModel
+      .findOne({ _id: replyToId, hangoutId })
+      .populate('userId', 'name');
+    if (!original) {
+      throw new BadRequestException('The message you are replying to was not found in this hangout');
+    }
+    const author = original.userId as unknown as { _id: Types.ObjectId; name?: string };
+    const text = original.content.replace(/\s+/g, ' ').trim();
+    return {
+      messageId: original._id,
+      userId: author?._id,
+      authorName: author?.name ?? '',
+      content: text.length > REPLY_SNIPPET_LENGTH ? text.slice(0, REPLY_SNIPPET_LENGTH - 1) + '…' : text,
+    };
   }
 
   async getMessages(hangoutId: string, userId: string, limit = 50, skip = 0, restrictHistory = false) {
@@ -61,6 +92,7 @@ export class ChatService {
     return this.messageModel
       .find(query)
       .populate('userId', 'name email')
+      .populate('readBy.userId', 'name')
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
@@ -81,6 +113,7 @@ export class ChatService {
     return this.messageModel
       .find(query)
       .populate('userId', 'name email')
+      .populate('readBy.userId', 'name')
       .sort({ createdAt: -1 })
       .limit(50)
       .exec();
@@ -185,6 +218,94 @@ export class ChatService {
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messagePinned', event);
     // Not "message": the response interceptor treats a top-level `message` key as the status text
     return event;
+  }
+
+  // ---- Reactions ----
+
+  /**
+   * Adds the user's reaction with this emoji, or removes it if already there.
+   * Uses atomic $addToSet/$pull on `reactions.<emoji>` so two people reacting at
+   * the same moment can't overwrite each other.
+   */
+  async toggleReaction(messageId: string, userId: string, emoji: string) {
+    emoji = (emoji ?? '').trim();
+    if (!EMOJI.test(emoji)) {
+      throw new BadRequestException('Reactions must be a single emoji');
+    }
+    if (!Types.ObjectId.isValid(messageId)) {
+      throw new NotFoundException('Message not found');
+    }
+    const message = await this.messageModel.findById(messageId).select('hangoutId reactions');
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+    const hangoutId = message.hangoutId.toString();
+    if (!(await this.checkUserAccess(hangoutId, userId))) {
+      throw new ForbiddenException('You must be part of this hangout to react');
+    }
+
+    const uid = new Types.ObjectId(userId);
+    const path = `reactions.${emoji}`;
+    const current = message.reactions?.get(emoji) ?? [];
+    const alreadyReacted = current.some((id) => id.toString() === userId);
+
+    if (alreadyReacted) {
+      await this.messageModel.updateOne({ _id: messageId }, { $pull: { [path]: uid } });
+      // Drop the emoji once nobody uses it
+      await this.messageModel.updateOne({ _id: messageId, [path]: { $size: 0 } }, { $unset: { [path]: '' } });
+    } else {
+      if (!message.reactions?.has(emoji) && (message.reactions?.size ?? 0) >= MAX_REACTION_KINDS) {
+        throw new BadRequestException(`A message can have at most ${MAX_REACTION_KINDS} different reactions`);
+      }
+      await this.messageModel.updateOne({ _id: messageId }, { $addToSet: { [path]: uid } });
+    }
+
+    const updated = await this.messageModel.findById(messageId).select('reactions');
+    const event = {
+      hangoutId,
+      messageId,
+      reactions: (updated?.toJSON() as unknown as { reactions?: Record<string, string[]> })?.reactions ?? {},
+    };
+    this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messageReactions', event);
+    return event;
+  }
+
+  // ---- Read receipts ----
+
+  /**
+   * Marks every message in the hangout up to (and including) `upToMessageId` as
+   * read by this user, in one update, and tells everyone viewing the chat.
+   * The user's own messages are skipped.
+   */
+  async markRead(hangoutId: string, userId: string, upToMessageId: string) {
+    const upTo = await this.messageModel.findOne({ _id: upToMessageId, hangoutId }).select('createdAt');
+    if (!upTo) {
+      throw new NotFoundException('Message not found in this hangout');
+    }
+    const upToTime = (upTo as unknown as { createdAt: Date }).createdAt;
+    const uid = new Types.ObjectId(userId);
+    const readAt = new Date();
+
+    const result = await this.messageModel.updateMany(
+      {
+        hangoutId,
+        createdAt: { $lte: upToTime },
+        userId: { $ne: userId },
+        'readBy.userId': { $ne: uid },
+      },
+      { $push: { readBy: { userId: uid, readAt } } },
+    );
+
+    if (result.modifiedCount > 0) {
+      const reader = await this.userModel.findById(userId).select('name').lean();
+      this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messagesRead', {
+        hangoutId,
+        reader: { _id: userId, name: reader?.name ?? '' },
+        upTo: upToTime.toISOString(),
+        readAt: readAt.toISOString(),
+      });
+    }
+    return { updated: result.modifiedCount };
   }
 
   async getPinned(hangoutId: string) {

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SendMessageDto {
@@ -27,6 +27,29 @@ export class SendMessageDto {
   @IsOptional()
   @IsEnum(['text', 'image', 'system'])
   messageType?: string;
+
+  @ApiProperty({
+    description: 'Id of the message this one replies to (same hangout)',
+    example: '507f1f77bcf86cd799439099',
+    required: false,
+  })
+  @IsOptional()
+  @IsMongoId()
+  replyToId?: string;
+}
+
+export class ReactDto {
+  @ApiProperty({ description: 'Emoji to toggle on the message', example: '👍' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  emoji: string;
+}
+
+export class MarkReadDto {
+  @ApiProperty({ description: 'Everything in the hangout up to and including this message is marked read', example: '507f1f77bcf86cd799439011' })
+  @IsMongoId()
+  upToMessageId: string;
 }
 
 export class EditMessageDto {
