@@ -1,7 +1,8 @@
-import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, ValidateNested } from 'class-validator';
+import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, Max, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HangoutLocationDto } from './hangout-location.dto';
+import { HangoutStatus } from '../schemas/hangout.schema';
 
 export class CreateHangoutDto {
   @ApiProperty({
@@ -47,6 +48,19 @@ export class CreateHangoutDto {
   })
   @IsDateString()
   time: string;
+
+  @ApiPropertyOptional({
+    description: 'How long the hangout runs, in minutes. Used to decide when it finishes.',
+    example: 120,
+    minimum: 15,
+    maximum: 1440,
+    default: 120,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(15)
+  @Max(1440)
+  durationMinutes?: number;
 
   @ApiPropertyOptional({
     description: 'Whether this is a sponsored hangout',
@@ -138,6 +152,18 @@ export class UpdateHangoutDto {
   time?: string;
 
   @ApiPropertyOptional({
+    description: 'How long the hangout runs, in minutes. Used to decide when it finishes.',
+    example: 180,
+    minimum: 15,
+    maximum: 1440,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(15)
+  @Max(1440)
+  durationMinutes?: number;
+
+  @ApiPropertyOptional({
     description: 'Maximum number of attendees',
     example: 25,
     minimum: 1,
@@ -154,4 +180,24 @@ export class UpdateHangoutDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+}
+
+// Manual lifecycle control by the organizer or an admin. Everything except
+// `cancelled` is re-derived from the start time by the scheduler.
+export class UpdateHangoutStatusDto {
+  @ApiProperty({
+    description: 'New status. Only `cancelled` (and restoring to `upcoming`) can be set by hand.',
+    enum: Object.values(HangoutStatus),
+    example: HangoutStatus.CANCELLED,
+  })
+  @IsIn(Object.values(HangoutStatus))
+  status: HangoutStatus;
+
+  @ApiPropertyOptional({
+    description: 'Why the hangout was cancelled — shown to every attendee',
+    example: 'Venue is unavailable, rescheduling soon',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

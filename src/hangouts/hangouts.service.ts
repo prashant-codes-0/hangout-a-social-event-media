@@ -1,15 +1,39 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Hangout } from './schemas/hangout.schema';
-import { JoinRequest, JoinRequestStatus } from './schemas/join-request.schema';
-import { User, UserRole } from '../auth/schemas/user.schema';
-import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
+import { User } from '../auth/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
+import {
+  CreateHangoutDto,
+  UpdateHangoutDto,
+  UpdateHangoutStatusDto,
+} from './dto/hangout.dto';
+import {
+  deriveHangoutStatus,
+  formatHangoutWhen,
+  REMINDER_TOLERANCE_MS,
+  REMINDER_WINDOWS,
+} from './hangout-status';
+import { Hangout, HangoutStatus } from './schemas/hangout.schema';
+import { JoinRequest, JoinRequestStatus } from './schemas/join-request.schema';
+
+// Grace period before a "starting now" alert, so a server that was briefly down
+// does not spam every past hangout back to life on restart.
+const JUST_STARTED_WINDOW_MS = 30 * 60 * 1000;
+
+const MINUTE = 60 * 1000;
 
 @Injectable()
 export class HangoutsService {
+  private readonly logger = new Logger(HangoutsService.name);
+
   constructor(
     @InjectModel(Hangout.name)
     private hangoutModel: Model<Hangout>,
@@ -18,12 +42,15 @@ export class HangoutsService {
     @InjectModel(User.name)
     private userModel: Model<User>,
     private notifications: NotificationsService,
-  ) { }
+  ) {}
 
   // ---- Join request alerts (fire and forget; NotificationsService never throws) ----
 
   private async alertJoinRequest(hangout: Hangout, requesterId: string) {
-    const requester = await this.userModel.findById(requesterId).select('name').lean();
+    const requester = await this.userModel
+      .findById(requesterId)
+      .select('name')
+      .lean();
     this.notifications.notify(hangout.createdBy.toString(), {
       type: NotificationType.JOIN_REQUEST,
       actorId: requesterId,
@@ -34,12 +61,19 @@ export class HangoutsService {
     });
   }
 
-  private alertJoinDecision(hangout: Hangout, requesterId: string, approved: boolean, decidedById: string) {
+  private alertJoinDecision(
+    hangout: Hangout,
+    requesterId: string,
+    approved: boolean,
+    decidedById: string,
+  ) {
     this.notifications.notify(requesterId, {
-      type: approved ? NotificationType.JOIN_APPROVED : NotificationType.JOIN_REJECTED,
+      type: approved
+        ? NotificationType.JOIN_APPROVED
+        : NotificationType.JOIN_REJECTED,
       actorId: decidedById,
       hangoutId: String(hangout._id),
-      title: approved ? 'You\'re in! 🎉' : 'Join request declined',
+      title: approved ? "You're in! 🎉" : 'Join request declined',
       body: approved
         ? `Your request to join ${hangout.title} was approved`
         : `Your request to join ${hangout.title} wasn't accepted this time`,
@@ -49,9 +83,25 @@ export class HangoutsService {
 
   async create(createHangoutDto: CreateHangoutDto, userId: string) {
     // Role validation is now handled by VerifiedUserGuard at the controller level
+    const start = new Date(createHangoutDto.time);
+
+    if (isNaN(start.getTime())) {
+      throw new BadRequestException('Hangout time is not a valid date');
+    }
+
+    // A minute of slack so "right now" is still creatable
+    if (start.getTime() < Date.now() - MINUTE) {
+      throw new BadRequestException('Hangout time must be in the future');
+    }
+
+    const durationMinutes = createHangoutDto.durationMinutes;
+
     const hangout = new this.hangoutModel({
       ...createHangoutDto,
-      time: new Date(createHangoutDto.time),
+      time: start,
+      durationMinutes,
+      status: deriveHangoutStatus(start, durationMinutes),
+      remindersSent: [],
       createdBy: userId,
       attendees: [userId], // Creator automatically joins their own hangout
     });
@@ -59,8 +109,19 @@ export class HangoutsService {
     return hangout.save();
   }
 
-  async findAll(filters?: { purpose?: string; place?: string; date?: string }, userId?: string) {
-    const query: any = { isPublic: true };
+  private buildFeedQuery(
+    filters?: {
+      purpose?: string;
+      place?: string;
+      date?: string;
+      status?: string;
+      includePast?: boolean | string;
+    },
+    options: { includePrivate: boolean } = { includePrivate: false },
+  ): Record<string, any> {
+    const query: Record<string, any> = options.includePrivate
+      ? {}
+      : { isPublic: true };
 
     if (filters?.purpose) {
       query.purpose = { $regex: filters.purpose, $options: 'i' };
@@ -81,90 +142,121 @@ export class HangoutsService {
       };
     }
 
-    const hangouts = await this.hangoutModel
-      .find(query)
-      .populate('createdBy', 'name email')
-      .populate('blastedBy', 'name email')
-      .populate('requestedBy', 'name email')
-      .exec();
+    const includePast =
+      filters?.includePast === true || filters?.includePast === 'true';
 
-    // Add user status fields for authenticated users
-    if (userId) {
-      return hangouts.map(hangout => {
-        const hangoutObj = hangout.toObject();
-        const userHasBlasted = hangout.blastedBy.some(
-          (blastedUser: any) => blastedUser._id.toString() === userId
+    // An explicit status filter wins; otherwise hide finished events unless asked.
+    if (filters?.status) {
+      if (
+        !Object.values(HangoutStatus).includes(filters.status as HangoutStatus)
+      ) {
+        throw new BadRequestException(
+          `Invalid status "${filters.status}". Expected one of: ${Object.values(HangoutStatus).join(', ')}`,
         );
-        const userHasRequested = hangout.requestedBy.some(
-          (requestedUser: any) => requestedUser._id.toString() === userId
-        );
-        const userIsAttending = hangout.attendees.some(
-          (attendee: any) => attendee._id.toString() === userId
-        );
-        return {
-          ...hangoutObj,
-          userHasBlasted,
-          userHasRequested,
-          userIsAttending,
-        };
-      });
+      }
+      query.status = filters.status;
+    } else if (!includePast) {
+      query.status = {
+        $in: [HangoutStatus.UPCOMING, HangoutStatus.ONGOING],
+      };
     }
 
-    return hangouts;
+    return query;
   }
 
-  async findAllAdmin(filters?: { purpose?: string; place?: string; date?: string }, userId?: string) {
-    const query: any = {}; // No isPublic filter - admins can see all hangouts
-
-    if (filters?.purpose) {
-      query.purpose = { $regex: filters.purpose, $options: 'i' };
-    }
-
-    if (filters?.place) {
-      query.place = { $regex: filters.place, $options: 'i' };
-    }
-
-    if (filters?.date) {
-      const startDate = new Date(filters.date);
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 1);
-
-      query.time = {
-        $gte: startDate,
-        $lt: endDate,
-      };
-    }
-
+  private async executeHangoutQuery(
+    query: Record<string, any>,
+    userId?: string,
+    sort: 1 | -1 = 1,
+  ) {
     const hangouts = await this.hangoutModel
       .find(query)
       .populate('createdBy', 'name email')
       .populate('blastedBy', 'name email')
       .populate('requestedBy', 'name email')
+      .sort({ time: sort })
       .exec();
 
     // Add user status fields for authenticated users
-    if (userId) {
-      return hangouts.map(hangout => {
-        const hangoutObj = hangout.toObject();
-        const userHasBlasted = hangout.blastedBy.some(
-          (blastedUser: any) => blastedUser._id.toString() === userId
-        );
-        const userHasRequested = hangout.requestedBy.some(
-          (requestedUser: any) => requestedUser._id.toString() === userId
-        );
-        const userIsAttending = hangout.attendees.some(
-          (attendee: any) => attendee._id.toString() === userId
-        );
-        return {
-          ...hangoutObj,
-          userHasBlasted,
-          userHasRequested,
-          userIsAttending,
-        };
-      });
+    if (!userId) {
+      return hangouts;
     }
 
-    return hangouts;
+    return hangouts.map((hangout) => {
+      const hangoutObj = hangout.toObject();
+      const userHasBlasted = this.collectionIncludesUser(
+        hangout.blastedBy,
+        userId,
+      );
+      const userHasRequested = this.collectionIncludesUser(
+        hangout.requestedBy,
+        userId,
+      );
+      const userIsAttending = this.collectionIncludesUser(
+        hangout.attendees,
+        userId,
+      );
+      return {
+        ...hangoutObj,
+        userHasBlasted,
+        userHasRequested,
+        userIsAttending,
+        userHasJoined: userIsAttending,
+      };
+    });
+  }
+
+  // Entries are populated User docs in some queries and raw ObjectIds in others,
+  // so membership has to handle both shapes.
+  private collectionIncludesUser(
+    collection: any[] | undefined,
+    userId: string,
+  ): boolean {
+    if (!Array.isArray(collection)) {
+      return false;
+    }
+
+    return collection.some((entry) => {
+      if (!entry) return false;
+      if (typeof entry === 'string') return entry === userId;
+      if (entry._id) return entry._id.toString() === userId;
+      return entry.toString() === userId;
+    });
+  }
+
+  // Default feed hides finished events and puts the soonest hangout first.
+  // includePast=true adds history back, newest first.
+  async findAll(
+    filters?: {
+      purpose?: string;
+      place?: string;
+      date?: string;
+      status?: string;
+      includePast?: boolean | string;
+    },
+    userId?: string,
+  ) {
+    const includePast =
+      filters?.includePast === true || filters?.includePast === 'true';
+    const query = this.buildFeedQuery(filters, { includePrivate: false });
+
+    return this.executeHangoutQuery(query, userId, includePast ? -1 : 1);
+  }
+
+  async findAllAdmin(
+    filters?: {
+      purpose?: string;
+      place?: string;
+      date?: string;
+      status?: string;
+      includePast?: boolean | string;
+    },
+    userId?: string,
+  ) {
+    const query = this.buildFeedQuery(filters, { includePrivate: true });
+
+    // Admins manage everything, including events that already finished.
+    return this.executeHangoutQuery(query, userId, -1);
   }
 
   async findOne(id: string, userId?: string) {
@@ -194,15 +286,12 @@ export class HangoutsService {
     let userIsAttending = false;
 
     if (userId) {
-      userHasBlasted = hangout.blastedBy.some(
-        (blastedUser: any) => blastedUser._id.toString() === userId
+      userHasBlasted = this.collectionIncludesUser(hangout.blastedBy, userId);
+      userHasRequested = this.collectionIncludesUser(
+        hangout.requestedBy,
+        userId,
       );
-      userHasRequested = hangout.requestedBy.some(
-        (requestedUser: any) => requestedUser._id.toString() === userId
-      );
-      userIsAttending = hangout.attendees.some(
-        (attendee: any) => attendee._id.toString() === userId
-      );
+      userIsAttending = this.collectionIncludesUser(hangout.attendees, userId);
     }
 
     return {
@@ -211,10 +300,16 @@ export class HangoutsService {
       userHasBlasted,
       userHasRequested,
       userIsAttending,
+      userHasJoined: userIsAttending,
     };
   }
 
-  async update(id: string, updateHangoutDto: UpdateHangoutDto, userId: string, isAdmin: boolean = false) {
+  async update(
+    id: string,
+    updateHangoutDto: UpdateHangoutDto,
+    userId: string,
+    isAdmin: boolean = false,
+  ) {
     const hangout = await this.hangoutModel.findById(id);
 
     if (!hangout) {
@@ -228,12 +323,44 @@ export class HangoutsService {
 
     const updateData: any = { ...updateHangoutDto };
     if (updateHangoutDto.time) {
-      updateData.time = new Date(updateHangoutDto.time);
+      const start = new Date(updateHangoutDto.time);
+      if (isNaN(start.getTime())) {
+        throw new BadRequestException('Hangout time is not a valid date');
+      }
+      if (start.getTime() < Date.now() - MINUTE) {
+        throw new BadRequestException('Hangout time must be in the future');
+      }
+      updateData.time = start;
+      // A new start time means the old reminder plan is stale
+      updateData.remindersSent = [];
     }
+    if (updateHangoutDto.durationMinutes) {
+      updateData.durationMinutes = updateHangoutDto.durationMinutes;
+    }
+
+    // Re-derive the lifecycle state from the (possibly new) time, unless the
+    // organizer cancelled it — cancellation is never undone implicitly.
+    updateData.status = deriveHangoutStatus(
+      updateData.time ?? hangout.time,
+      updateData.durationMinutes ?? hangout.durationMinutes,
+      hangout.status,
+    );
+
+    if (
+      updateData.status !== hangout.status &&
+      updateData.status !== HangoutStatus.CANCELLED
+    ) {
+      updateData.$unset = {
+        ...(updateData.$unset ?? {}),
+        cancelledAt: 1,
+        cancelReason: 1,
+      };
+    }
+
     if (updateHangoutDto.location === null) {
       // Remove the map location
       delete updateData.location;
-      updateData.$unset = { location: 1 };
+      updateData.$unset = { ...(updateData.$unset ?? {}), location: 1 };
     }
 
     await this.hangoutModel.findByIdAndUpdate(id, updateData);
@@ -264,6 +391,14 @@ export class HangoutsService {
       throw new NotFoundException('Hangout not found');
     }
 
+    if (hangout.status === HangoutStatus.CANCELLED) {
+      throw new BadRequestException('This hangout was cancelled');
+    }
+
+    if (hangout.status === HangoutStatus.COMPLETED) {
+      throw new BadRequestException('This hangout has already finished');
+    }
+
     // Check if user is already an attendee
     if (hangout.attendees.includes(userId as any)) {
       throw new BadRequestException('You are already attending this hangout');
@@ -271,7 +406,9 @@ export class HangoutsService {
 
     // Check if user already has a pending request
     if (hangout.requestedBy.includes(userId as any)) {
-      throw new BadRequestException('You already have a pending request for this hangout');
+      throw new BadRequestException(
+        'You already have a pending request for this hangout',
+      );
     }
 
     // Check if hangout is full
@@ -288,11 +425,16 @@ export class HangoutsService {
       message: 'Join request sent successfully',
       hangoutId,
       userId,
-      status: 'pending'
+      status: 'pending',
     };
   }
 
-  async handleJoinRequest(requestId: string, status: JoinRequestStatus, userId: string, isAdmin: boolean = false) {
+  async handleJoinRequest(
+    requestId: string,
+    status: JoinRequestStatus,
+    userId: string,
+    isAdmin: boolean = false,
+  ) {
     const joinRequest = await this.joinRequestModel
       .findById(requestId)
       .populate('hangoutId')
@@ -309,7 +451,9 @@ export class HangoutsService {
 
     // Admins can handle any join request, regular users can only handle requests for their own hangouts
     if (!isAdmin && hangout.createdBy.toString() !== userId) {
-      throw new ForbiddenException('You can only handle requests for your own hangouts');
+      throw new ForbiddenException(
+        'You can only handle requests for your own hangouts',
+      );
     }
 
     joinRequest.status = status;
@@ -317,20 +461,46 @@ export class HangoutsService {
 
     // If approved, add user to attendees
     if (status === JoinRequestStatus.APPROVED) {
+      const currentStatus = deriveHangoutStatus(
+        hangout.time,
+        hangout.durationMinutes,
+        hangout.status,
+      );
+      if (currentStatus === HangoutStatus.CANCELLED) {
+        throw new BadRequestException('This hangout was cancelled');
+      }
+      if (currentStatus === HangoutStatus.COMPLETED) {
+        throw new BadRequestException('This hangout has already finished');
+      }
+
       if (!hangout.attendees.includes(joinRequest.userId)) {
         hangout.attendees.push(joinRequest.userId);
         await hangout.save();
       }
     }
 
-    if (status === JoinRequestStatus.APPROVED || status === JoinRequestStatus.REJECTED) {
-      this.alertJoinDecision(hangout, joinRequest.userId.toString(), status === JoinRequestStatus.APPROVED, userId);
+    if (
+      status === JoinRequestStatus.APPROVED ||
+      status === JoinRequestStatus.REJECTED
+    ) {
+      this.alertJoinDecision(
+        hangout,
+        joinRequest.userId.toString(),
+        status === JoinRequestStatus.APPROVED,
+        userId,
+      );
     }
 
     return joinRequest;
   }
 
-  async handleJoinRequestNew(hangoutId: string, requestedUserId: string, action: 'approve' | 'reject', currentUserId: string, isAdmin: boolean = false) {
+  async handleJoinRequestNew(
+    hangoutId: string,
+    requestedUserId: string,
+    action: 'approve' | 'reject',
+    currentUserId: string,
+    isAdmin: boolean = false,
+  ) {
     const hangout = await this.hangoutModel.findById(hangoutId);
 
     if (!hangout) {
@@ -339,7 +509,9 @@ export class HangoutsService {
 
     // Admins can handle any join request, regular users can only handle requests for their own hangouts
     if (!isAdmin && hangout.createdBy.toString() !== currentUserId) {
-      throw new ForbiddenException('You can only handle requests for your own hangouts');
+      throw new ForbiddenException(
+        'You can only handle requests for your own hangouts',
+      );
     }
 
     // Check if user actually has a pending request
@@ -349,10 +521,23 @@ export class HangoutsService {
 
     // Remove user from requestedBy array
     hangout.requestedBy = hangout.requestedBy.filter(
-      id => id.toString() !== requestedUserId
+      (id) => id.toString() !== requestedUserId,
     );
 
     if (action === 'approve') {
+      // Re-derive from the clock so stale "upcoming" rows cannot slip through
+      const currentStatus = deriveHangoutStatus(
+        hangout.time,
+        hangout.durationMinutes,
+        hangout.status,
+      );
+      if (currentStatus === HangoutStatus.CANCELLED) {
+        throw new BadRequestException('This hangout was cancelled');
+      }
+      if (currentStatus === HangoutStatus.COMPLETED) {
+        throw new BadRequestException('This hangout has already finished');
+      }
+
       // Check if hangout is full
       if (hangout.attendees.length >= hangout.capacity) {
         throw new BadRequestException('This hangout is full');
@@ -365,14 +550,19 @@ export class HangoutsService {
     }
 
     await hangout.save();
-    this.alertJoinDecision(hangout, requestedUserId, action === 'approve', currentUserId);
+    this.alertJoinDecision(
+      hangout,
+      requestedUserId,
+      action === 'approve',
+      currentUserId,
+    );
 
     return {
       message: `Join request ${action}d successfully`,
       hangoutId,
       requestedUserId,
       action,
-      status: action === 'approve' ? 'approved' : 'rejected'
+      status: action === 'approve' ? 'approved' : 'rejected',
     };
   }
 
@@ -389,7 +579,7 @@ export class HangoutsService {
     if (hasBlasted) {
       // Remove blast (downvote)
       hangout.blastedBy = hangout.blastedBy.filter(
-        id => id.toString() !== userId
+        (id) => id.toString() !== userId,
       );
       hangout.blasts = Math.max(0, hangout.blasts - 1);
     } else {
@@ -428,7 +618,7 @@ export class HangoutsService {
       .exec();
 
     // Transform data to include detailed request information
-    return hangouts.map(hangout => {
+    return hangouts.map((hangout) => {
       const hangoutObj = hangout.toObject();
       return {
         ...hangoutObj,
@@ -436,7 +626,7 @@ export class HangoutsService {
           totalAttendees: hangout.attendees.length,
           pendingRequests: hangout.requestedBy.length,
           availableSpots: hangout.capacity - hangout.attendees.length,
-          isFull: hangout.attendees.length >= hangout.capacity
+          isFull: hangout.attendees.length >= hangout.capacity,
         },
         requestDetails: hangout.requestedBy.map((user: any) => ({
           userId: user._id,
@@ -444,15 +634,15 @@ export class HangoutsService {
           email: user.email,
           role: user.role,
           verified: user.verified,
-          requestedAt: new Date() // Could be enhanced with actual request timestamps
+          requestedAt: new Date(), // Could be enhanced with actual request timestamps
         })),
         attendeeDetails: hangout.attendees.map((user: any) => ({
           userId: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
-          verified: user.verified
-        }))
+          verified: user.verified,
+        })),
       };
     });
   }
@@ -480,7 +670,7 @@ export class HangoutsService {
 
     // Check if user is actually in the hangout
     const isAttendee = hangout.attendees.some(
-      attendeeId => attendeeId.toString() === userId
+      (attendeeId) => attendeeId.toString() === userId,
     );
 
     if (!isAttendee) {
@@ -489,7 +679,7 @@ export class HangoutsService {
 
     // Remove user from attendees array
     hangout.attendees = hangout.attendees.filter(
-      attendeeId => attendeeId.toString() !== userId
+      (attendeeId) => attendeeId.toString() !== userId,
     );
 
     // Update any approved join request to "rejected" or remove it
@@ -517,16 +707,18 @@ export class HangoutsService {
 
     // Check if user has a pending request
     const hasRequest = hangout.requestedBy.some(
-      requesterId => requesterId.toString() === userId
+      (requesterId) => requesterId.toString() === userId,
     );
 
     if (!hasRequest) {
-      throw new BadRequestException('You do not have a pending request for this hangout');
+      throw new BadRequestException(
+        'You do not have a pending request for this hangout',
+      );
     }
 
     // Remove user from requestedBy array
     hangout.requestedBy = hangout.requestedBy.filter(
-      requesterId => requesterId.toString() !== userId
+      (requesterId) => requesterId.toString() !== userId,
     );
 
     await hangout.save();
@@ -536,7 +728,7 @@ export class HangoutsService {
       hangoutId,
       hangoutTitle: hangout.title,
       userId,
-      action: 'cancelled'
+      action: 'cancelled',
     };
   }
 
@@ -548,10 +740,10 @@ export class HangoutsService {
     }
 
     const isAttendee = hangout.attendees.some(
-      attendeeId => attendeeId.toString() === userId
+      (attendeeId) => attendeeId.toString() === userId,
     );
     const hasRequest = hangout.requestedBy.some(
-      requesterId => requesterId.toString() === userId
+      (requesterId) => requesterId.toString() === userId,
     );
 
     if (!isAttendee && !hasRequest) {
@@ -564,7 +756,7 @@ export class HangoutsService {
     // If user is an attendee, remove from attendees
     if (isAttendee) {
       hangout.attendees = hangout.attendees.filter(
-        attendeeId => attendeeId.toString() !== userId
+        (attendeeId) => attendeeId.toString() !== userId,
       );
       action = 'left';
       message = 'Successfully left the hangout';
@@ -579,10 +771,12 @@ export class HangoutsService {
     // If user has a pending request, remove from requestedBy
     if (hasRequest) {
       hangout.requestedBy = hangout.requestedBy.filter(
-        requesterId => requesterId.toString() !== userId
+        (requesterId) => requesterId.toString() !== userId,
       );
       action = isAttendee ? 'left_and_cancelled' : 'cancelled_request';
-      message = isAttendee ? 'Successfully left the hangout and cancelled any pending requests' : 'Successfully cancelled join request';
+      message = isAttendee
+        ? 'Successfully left the hangout and cancelled any pending requests'
+        : 'Successfully cancelled join request';
     }
 
     await hangout.save();
@@ -594,7 +788,7 @@ export class HangoutsService {
       userId,
       action,
       remainingAttendees: hangout.attendees.length,
-      pendingRequests: hangout.requestedBy.length
+      pendingRequests: hangout.requestedBy.length,
     };
   }
 
@@ -602,7 +796,7 @@ export class HangoutsService {
     return this.hangoutModel
       .find({
         attendees: userId,
-        createdBy: { $ne: userId } // Exclude hangouts created by the user
+        createdBy: { $ne: userId }, // Exclude hangouts created by the user
       })
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
@@ -614,7 +808,7 @@ export class HangoutsService {
     return this.hangoutModel
       .find({
         requestedBy: userId, // Hangouts where user has pending requests
-        createdBy: { $ne: userId } // Exclude hangouts created by the user
+        createdBy: { $ne: userId }, // Exclude hangouts created by the user
       })
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
@@ -628,7 +822,7 @@ export class HangoutsService {
     const hangouts = await this.hangoutModel
       .find({
         createdBy: userId,
-        requestedBy: { $exists: true, $not: { $size: 0 } } // Only hangouts with pending requests
+        requestedBy: { $exists: true, $not: { $size: 0 } }, // Only hangouts with pending requests
       })
       .populate('createdBy', 'name email')
       .populate('attendees', 'name email')
@@ -637,7 +831,7 @@ export class HangoutsService {
       .exec();
 
     // Transform the data to show request details more clearly
-    return hangouts.map(hangout => {
+    return hangouts.map((hangout) => {
       const hangoutObj = hangout.toObject();
       return {
         ...hangoutObj,
@@ -648,8 +842,8 @@ export class HangoutsService {
           email: user.email,
           role: user.role,
           verified: user.verified,
-          requestedAt: new Date() // Placeholder - could be enhanced with actual request timestamps
-        }))
+          requestedAt: new Date(), // Placeholder - could be enhanced with actual request timestamps
+        })),
       };
     });
   }
@@ -659,14 +853,14 @@ export class HangoutsService {
       {
         $match: {
           createdBy: userId as any,
-          requestedBy: { $exists: true, $not: { $size: 0 } }
-        }
+          requestedBy: { $exists: true, $not: { $size: 0 } },
+        },
       },
       {
         $project: {
           hangoutTitle: '$title',
-          requestCount: { $size: '$requestedBy' }
-        }
+          requestCount: { $size: '$requestedBy' },
+        },
       },
       {
         $group: {
@@ -677,27 +871,390 @@ export class HangoutsService {
             $push: {
               hangoutId: '$_id',
               hangoutTitle: '$hangoutTitle',
-              requestCount: '$requestCount'
-            }
-          }
-        }
-      }
+              requestCount: '$requestCount',
+            },
+          },
+        },
+      },
     ]);
 
-    return result[0] || {
-      totalRequests: 0,
-      hangoutsWithRequests: 0,
-      details: []
+    return (
+      result[0] || {
+        totalRequests: 0,
+        hangoutsWithRequests: 0,
+        details: [],
+      }
+    );
+  }
+
+  // ---- Lifecycle & reminders (driven by HangoutsScheduler) ----
+
+  // Documents created before the status field existed have none. Derive it once
+  // at boot so the default feed (which filters on status) does not hide them.
+  async backfillLegacyStatuses() {
+    const legacy = await this.hangoutModel
+      .find({
+        $or: [
+          { status: { $exists: false } },
+          { status: null },
+          { remindersSent: { $exists: false } },
+        ],
+      })
+      .select('time durationMinutes status')
+      .lean()
+      .exec();
+
+    if (!legacy.length) return { updated: 0 };
+
+    await this.hangoutModel.bulkWrite(
+      legacy.map((hangout) => ({
+        updateOne: {
+          filter: { _id: hangout._id },
+          update: {
+            $set: {
+              status:
+                hangout.status ??
+                deriveHangoutStatus(hangout.time, hangout.durationMinutes),
+              remindersSent: [],
+            },
+          },
+        },
+      })),
+    );
+
+    this.logger.log(
+      `Backfilled lifecycle status for ${legacy.length} hangout(s)`,
+    );
+    return { updated: legacy.length };
+  }
+
+  // Sends one alert per reminder window that has just come due, to every
+  // attendee. Each window is claimed atomically so it can never fire twice.
+  async sendDueReminders(now: Date = new Date()) {
+    const nowMs = now.getTime();
+    let recipients = 0;
+    let hangoutsNotified = 0;
+
+    for (const window of REMINDER_WINDOWS) {
+      const lower = new Date(nowMs + window.offsetMs - REMINDER_TOLERANCE_MS);
+      const upper = new Date(nowMs + window.offsetMs + REMINDER_TOLERANCE_MS);
+
+      const candidates = await this.hangoutModel
+        .find({
+          status: HangoutStatus.UPCOMING,
+          time: { $gte: lower, $lt: upper },
+          attendees: { $exists: true, $ne: [] },
+        })
+        .select('_id')
+        .lean()
+        .exec();
+
+      for (const candidate of candidates) {
+        const claimed = await this.hangoutModel
+          .findOneAndUpdate(
+            { _id: candidate._id, remindersSent: { $ne: window.kind } },
+            { $addToSet: { remindersSent: window.kind } },
+            { new: true },
+          )
+          .select('_id title place time attendees')
+          .lean()
+          .exec();
+
+        if (!claimed) continue;
+
+        const detail = [
+          claimed.title,
+          formatHangoutWhen(claimed.time),
+          claimed.place,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+        for (const attendee of claimed.attendees) {
+          await this.notifications.notify(attendee.toString(), {
+            type: NotificationType.HANGOUT_REMINDER,
+            hangoutId: String(claimed._id),
+            title: window.headline,
+            body: detail,
+            link: `/hangouts/details/${claimed._id}`,
+          });
+          recipients += 1;
+        }
+
+        hangoutsNotified += 1;
+      }
+    }
+
+    if (recipients) {
+      this.logger.log(
+        `Sent ${recipients} reminder(s) across ${hangoutsNotified} hangout(s)`,
+      );
+    }
+
+    return { hangoutsNotified, recipients };
+  }
+
+  // Moves hangouts from upcoming → ongoing → completed based on the clock.
+  // Cancelled hangouts are terminal and are never touched.
+  async syncStatuses(now: Date = new Date()) {
+    const nowMs = now.getTime();
+
+    const due = await this.hangoutModel
+      .find({
+        status: { $in: [HangoutStatus.UPCOMING, HangoutStatus.ONGOING] },
+        time: { $lte: now },
+      })
+      .select('_id title place time durationMinutes attendees status')
+      .lean()
+      .exec();
+
+    if (!due.length) return { started: 0, completed: 0 };
+
+    const operations: any[] = [];
+    const justStarted: typeof due = [];
+
+    for (const hangout of due) {
+      const next = deriveHangoutStatus(
+        hangout.time,
+        hangout.durationMinutes,
+        hangout.status,
+        nowMs,
+      );
+
+      if (next === hangout.status) continue;
+
+      if (next === HangoutStatus.ONGOING) {
+        operations.push({
+          updateOne: {
+            filter: { _id: hangout._id },
+            update: { $set: { status: HangoutStatus.ONGOING } },
+          },
+        });
+
+        // Only announce events that genuinely just began, otherwise a server
+        // that was down for a week greets everyone with old "starting now" alerts.
+        if (
+          nowMs - new Date(hangout.time).getTime() <=
+          JUST_STARTED_WINDOW_MS
+        ) {
+          justStarted.push(hangout);
+        }
+      }
+
+      if (next === HangoutStatus.COMPLETED) {
+        operations.push({
+          updateOne: {
+            filter: { _id: hangout._id },
+            update: {
+              $set: { status: HangoutStatus.COMPLETED, completedAt: now },
+            },
+          },
+        });
+      }
+    }
+
+    if (operations.length) {
+      await this.hangoutModel.bulkWrite(operations);
+    }
+
+    for (const hangout of justStarted) {
+      const detail = [
+        hangout.title,
+        formatHangoutWhen(hangout.time),
+        hangout.place,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
+      for (const attendee of hangout.attendees ?? []) {
+        await this.notifications.notify(attendee.toString(), {
+          type: NotificationType.HANGOUT_STARTED,
+          hangoutId: String(hangout._id),
+          title: 'Happening now',
+          body: detail,
+          link: `/hangouts/details/${hangout._id}`,
+        });
+      }
+    }
+
+    if (operations.length) {
+      this.logger.log(
+        `Lifecycle: ${justStarted.length} started, ${operations.length - justStarted.length} completed`,
+      );
+    }
+
+    return {
+      started: justStarted.length,
+      completed: operations.length - justStarted.length,
+    };
+  }
+
+  private alertCancelled(hangout: Hangout, cancelledById: string) {
+    const reason = hangout.cancelReason ? ` — ${hangout.cancelReason}` : '';
+
+    for (const attendee of hangout.attendees) {
+      this.notifications.notify(attendee.toString(), {
+        type: NotificationType.HANGOUT_CANCELLED,
+        actorId: cancelledById,
+        hangoutId: String(hangout._id),
+        title: 'Hangout cancelled',
+        body: `${hangout.title}${reason}`,
+        link: `/hangouts/details/${hangout._id}`,
+      });
+    }
+  }
+
+  // Manual lifecycle control. Only `cancelled` is a real user decision —
+  // everything else is re-derived from the start time so the clock stays honest.
+  async setStatus(
+    id: string,
+    dto: UpdateHangoutStatusDto,
+    userId: string,
+    isAdmin = false,
+  ) {
+    const hangout = await this.hangoutModel.findById(id);
+
+    if (!hangout) {
+      throw new NotFoundException('Hangout not found');
+    }
+
+    if (!isAdmin && hangout.createdBy.toString() !== userId) {
+      throw new ForbiddenException(
+        'You can only change the status of your own hangouts',
+      );
+    }
+
+    const hangoutId = String(hangout._id);
+
+    if (dto.status === HangoutStatus.CANCELLED) {
+      if (hangout.status === HangoutStatus.CANCELLED) {
+        throw new BadRequestException('This hangout is already cancelled');
+      }
+      if (hangout.status === HangoutStatus.COMPLETED) {
+        throw new BadRequestException('This hangout has already finished');
+      }
+
+      const cancelReason = dto.reason?.trim();
+
+      await this.hangoutModel.updateOne(
+        { _id: hangout._id },
+        {
+          $set: {
+            status: HangoutStatus.CANCELLED,
+            cancelledAt: new Date(),
+            cancelReason: cancelReason || undefined,
+          },
+        },
+      );
+
+      // Clear the live doc so the alert carries the reason
+      hangout.status = HangoutStatus.CANCELLED;
+      hangout.cancelReason = cancelReason || undefined;
+      this.alertCancelled(hangout, userId);
+
+      return this.findOne(hangoutId);
+    }
+
+    if (dto.status === HangoutStatus.COMPLETED) {
+      if (hangout.status === HangoutStatus.CANCELLED) {
+        throw new BadRequestException(
+          'A cancelled hangout cannot be completed',
+        );
+      }
+
+      await this.hangoutModel.updateOne(
+        { _id: hangout._id },
+        {
+          $set: { status: HangoutStatus.COMPLETED, completedAt: new Date() },
+        },
+      );
+
+      return this.findOne(hangoutId);
+    }
+
+    // Restoring a cancelled hangout: trust the clock, not the old status.
+    const restored = deriveHangoutStatus(hangout.time, hangout.durationMinutes);
+
+    await this.hangoutModel.updateOne(
+      { _id: hangout._id },
+      {
+        $set: {
+          status: restored,
+          // A revived hangout needs a fresh reminder plan
+          remindersSent: [],
+        },
+        $unset: { cancelledAt: 1, cancelReason: 1, completedAt: 1 },
+      },
+    );
+
+    return this.findOne(hangoutId);
+  }
+
+  // Headline counts for the discovery filters and the "your next hangout" nudge.
+  async getStatusCounts(userId?: string) {
+    const grouped = await this.hangoutModel
+      .aggregate([
+        { $match: { isPublic: true } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ])
+      .exec();
+
+    const counts: Record<string, number> = {};
+    for (const row of grouped) {
+      if (row._id) counts[row._id] = row.count;
+    }
+
+    let mine: { upcoming: number; live: number } | undefined;
+
+    if (userId) {
+      const [upcoming, live] = await Promise.all([
+        this.hangoutModel.countDocuments({
+          status: HangoutStatus.UPCOMING,
+          $or: [{ attendees: userId }, { createdBy: userId }],
+        }),
+        this.hangoutModel.countDocuments({
+          status: HangoutStatus.ONGOING,
+          $or: [{ attendees: userId }, { createdBy: userId }],
+        }),
+      ]);
+      mine = { upcoming, live };
+    }
+
+    return {
+      upcoming: counts[HangoutStatus.UPCOMING] ?? 0,
+      ongoing: counts[HangoutStatus.ONGOING] ?? 0,
+      completed: counts[HangoutStatus.COMPLETED] ?? 0,
+      cancelled: counts[HangoutStatus.CANCELLED] ?? 0,
+      mine,
     };
   }
 
   async getStats() {
     const totalHangouts = await this.hangoutModel.countDocuments();
-    const publicHangouts = await this.hangoutModel.countDocuments({ isPublic: true });
-    const privateHangouts = await this.hangoutModel.countDocuments({ isPublic: false });
-    const sponsoredHangouts = await this.hangoutModel.countDocuments({ sponsored: true });
+    const publicHangouts = await this.hangoutModel.countDocuments({
+      isPublic: true,
+    });
+    const privateHangouts = await this.hangoutModel.countDocuments({
+      isPublic: false,
+    });
+    const sponsoredHangouts = await this.hangoutModel.countDocuments({
+      sponsored: true,
+    });
     const totalUsers = await this.userModel.countDocuments();
     const totalJoinRequests = await this.joinRequestModel.countDocuments();
+    const byStatus = await this.hangoutModel.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+
+    const statusCounts = Object.values(HangoutStatus).reduce<
+      Record<string, number>
+    >((acc, status) => {
+      acc[status] = 0;
+      return acc;
+    }, {});
+    for (const row of byStatus) {
+      if (row._id) statusCounts[row._id] = row.count;
+    }
 
     return {
       hangouts: {
@@ -705,6 +1262,7 @@ export class HangoutsService {
         public: publicHangouts,
         private: privateHangouts,
         sponsored: sponsoredHangouts,
+        byStatus: statusCounts,
       },
       users: {
         total: totalUsers,

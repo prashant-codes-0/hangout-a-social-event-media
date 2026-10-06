@@ -10,6 +10,10 @@ export enum NotificationType {
   PRIVATE_MESSAGE = 'private_message',
   GROUP_MESSAGE = 'group_message',
   MISSED_CALL = 'missed_call',
+  // Scheduled by HangoutsScheduler: upcoming / starting / cancelled alerts
+  HANGOUT_REMINDER = 'hangout_reminder',
+  HANGOUT_CANCELLED = 'hangout_cancelled',
+  HANGOUT_STARTED = 'hangout_started',
 }
 
 // Alerts are removed automatically after this long

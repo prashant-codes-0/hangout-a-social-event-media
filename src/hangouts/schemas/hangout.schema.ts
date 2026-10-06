@@ -2,6 +2,17 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { HangoutLocation, HangoutLocationSchema } from './hangout-location.schema';
 
+export enum HangoutStatus {
+  UPCOMING = 'upcoming',
+  ONGOING = 'ongoing',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+}
+
+// How long a hangout stays "ongoing" after its start time, when the organizer
+// did not pick an explicit duration.
+export const DEFAULT_DURATION_MINUTES = 120;
+
 @Schema({ timestamps: true })
 export class Hangout extends Document {
   @Prop({ required: true })
@@ -22,6 +33,32 @@ export class Hangout extends Document {
 
   @Prop({ required: true })
   time: Date;
+
+  // How long the event runs, used to decide when "ongoing" becomes "completed"
+  @Prop({ default: DEFAULT_DURATION_MINUTES, min: 15 })
+  durationMinutes: number;
+
+  // Lifecycle state. Derived from `time` + `durationMinutes` by the scheduler,
+  // except for `cancelled` which only an organizer/admin can set.
+  @Prop({
+    enum: Object.values(HangoutStatus),
+    default: HangoutStatus.UPCOMING,
+  })
+  status: HangoutStatus;
+
+  @Prop()
+  cancelledAt?: Date;
+
+  @Prop()
+  cancelReason?: string;
+
+  @Prop()
+  completedAt?: Date;
+
+  // Reminder windows already delivered, e.g. ['24h', '2h'].
+  // Reset whenever the start time changes so the new time gets fresh reminders.
+  @Prop({ type: [String], default: [] })
+  remindersSent: string[];
 
   @Prop({ default: false })
   sponsored: boolean;
@@ -52,3 +89,8 @@ export class Hangout extends Document {
 }
 
 export const HangoutSchema = SchemaFactory.createForClass(Hangout);
+
+// Drives the "what is live right now" queries and the reminder scans.
+HangoutSchema.index({ status: 1, time: 1 });
+HangoutSchema.index({ time: 1, status: 1 });
+HangoutSchema.index({ isPublic: 1, status: 1, time: 1 });

@@ -16,6 +16,28 @@ export class HangoutResponseDto {
   @ApiProperty({ example: '2024-12-25T19:00:00.000Z' })
   time: string;
 
+  @ApiProperty({ example: 120, description: 'How long the hangout runs, in minutes' })
+  durationMinutes: number;
+
+  @ApiProperty({
+    example: 'upcoming',
+    enum: ['upcoming', 'ongoing', 'completed', 'cancelled'],
+    description: 'Lifecycle state, kept in sync by the scheduler',
+  })
+  status: string;
+
+  @ApiProperty({ example: '2024-12-25T19:00:00.000Z', required: false })
+  cancelledAt?: string;
+
+  @ApiProperty({ example: 'Organiser is unwell', required: false })
+  cancelReason?: string;
+
+  @ApiProperty({ example: '2024-12-25T19:00:00.000Z', required: false })
+  completedAt?: string;
+
+  @ApiProperty({ example: ['24h', '2h'], type: [String], required: false })
+  remindersSent?: string[];
+
   @ApiProperty({ example: false })
   sponsored: boolean;
 

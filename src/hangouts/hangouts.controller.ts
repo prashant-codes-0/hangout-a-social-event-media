@@ -21,13 +21,15 @@ import {
   ApiQuery
 } from '@nestjs/swagger';
 import { HangoutsService } from './hangouts.service';
-import { CreateHangoutDto, UpdateHangoutDto } from './dto/hangout.dto';
+import { CreateHangoutDto, UpdateHangoutDto, UpdateHangoutStatusDto } from './dto/hangout.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
+import { HangoutStatus } from './schemas/hangout.schema';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { VerifiedUserGuard } from '../common/guards/verified-user.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminOrSponsorGuard } from '../common/guards/admin-or-sponsor.guard';
+import { OptionalJwtGuard } from '../common/guards/optional-jwt.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../auth/schemas/user.schema';
 
@@ -49,16 +51,39 @@ export class HangoutsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all public hangouts with optional filters (shows blast status if authenticated)' })
+  @ApiOperation({
+    summary:
+      'Get public hangouts with optional filters. Finished events are hidden unless includePast=true or an explicit status is given.',
+  })
   @ApiQuery({ name: 'purpose', required: false, description: 'Filter by purpose' })
   @ApiQuery({ name: 'place', required: false, description: 'Filter by place' })
   @ApiQuery({ name: 'date', required: false, description: 'Filter by date (YYYY-MM-DD)' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: Object.values(HangoutStatus),
+    description: 'Filter by lifecycle state (overrides includePast)',
+  })
+  @ApiQuery({
+    name: 'includePast',
+    required: false,
+    description: 'true to include completed and cancelled hangouts, newest first',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of hangouts with blast status',
     type: [HangoutResponseDto]
   })
-  findAll(@Query() filters: { purpose?: string; place?: string; date?: string }, @Request() req?) {
+  findAll(
+    @Query() filters: {
+      purpose?: string;
+      place?: string;
+      date?: string;
+      status?: string;
+      includePast?: string;
+    },
+    @Request() req?,
+  ) {
     const userId = req?.user?.id;
     return this.hangoutsService.findAll(filters, userId);
   }
@@ -291,6 +316,32 @@ export class HangoutsController {
     return this.hangoutsService.findAllAdmin(filters, req.user.id);
   }
 
+  @UseGuards(OptionalJwtGuard)
+  @Get('status/counts')
+  @ApiOperation({
+    summary:
+      'Lifecycle counts for public hangouts (and the caller\'s own upcoming/live totals when authenticated)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Counts per status',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          upcoming: 12,
+          ongoing: 1,
+          completed: 40,
+          cancelled: 2,
+          mine: { upcoming: 3, live: 0 },
+        },
+      },
+    },
+  })
+  getStatusCounts(@Request() req?) {
+    return this.hangoutsService.getStatusCounts(req?.user?.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get hangout details by ID (shows if you have blasted it)' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
@@ -335,6 +386,29 @@ export class HangoutsController {
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
     return this.hangoutsService.update(id, updateHangoutDto, req.user.id, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch(':id/status')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Cancel or restore a hangout (organizer or admin). Cancelling alerts every attendee; restoring re-derives the status from the start time and resets reminders.',
+  })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiBody({ type: UpdateHangoutStatusDto })
+  @ApiResponse({ status: 200, description: 'Status updated', type: HangoutResponseDto })
+  @ApiResponse({ status: 400, description: 'Hangout is already in that state' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'You can only change the status of your own hangouts' })
+  @ApiResponse({ status: 404, description: 'Hangout not found' })
+  updateStatus(
+    @Param('id') id: string,
+    @Body() updateHangoutStatusDto: UpdateHangoutStatusDto,
+    @Request() req,
+  ) {
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.hangoutsService.setStatus(id, updateHangoutStatusDto, req.user.id, isAdmin);
   }
 
   @UseGuards(AuthGuard('jwt'))
