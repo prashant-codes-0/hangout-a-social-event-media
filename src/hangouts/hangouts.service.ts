@@ -21,7 +21,35 @@ import {
   REMINDER_TOLERANCE_MS,
   REMINDER_WINDOWS,
 } from './hangout-status';
+import {
+  containsText,
+  distanceKm,
+  geoFromLocation,
+  NearFilter,
+  nearQuery,
+  normalizeTags,
+  parseDate,
+  parseNear,
+} from './hangout-search';
+import { HangoutLocation } from './schemas/hangout-location.schema';
 import { Hangout, HangoutStatus } from './schemas/hangout.schema';
+
+// Query params accepted by the public feed
+export interface HangoutFeedFilters {
+  q?: string;
+  purpose?: string;
+  place?: string;
+  tags?: string;
+  date?: string;
+  from?: string;
+  to?: string;
+  lat?: string;
+  lng?: string;
+  radiusKm?: string;
+  sort?: string;
+  status?: string;
+  includePast?: boolean | string;
+}
 import { JoinRequest, JoinRequestStatus } from './schemas/join-request.schema';
 
 // Grace period before a "starting now" alert, so a server that was briefly down
@@ -98,6 +126,8 @@ export class HangoutsService {
 
     const hangout = new this.hangoutModel({
       ...createHangoutDto,
+      tags: normalizeTags(createHangoutDto.tags),
+      geo: geoFromLocation(createHangoutDto.location as HangoutLocation),
       time: start,
       durationMinutes,
       status: deriveHangoutStatus(start, durationMinutes),
@@ -110,29 +140,43 @@ export class HangoutsService {
   }
 
   private buildFeedQuery(
-    filters?: {
-      purpose?: string;
-      place?: string;
-      date?: string;
-      status?: string;
-      includePast?: boolean | string;
-    },
+    filters?: HangoutFeedFilters,
     options: { includePrivate: boolean } = { includePrivate: false },
+    near?: NearFilter,
   ): Record<string, any> {
     const query: Record<string, any> = options.includePrivate
       ? {}
       : { isPublic: true };
 
+    // Free-text search over what people actually read on a card
+    if (filters?.q?.trim()) {
+      const text = containsText(filters.q);
+      query.$or = [
+        { title: text },
+        { description: text },
+        { purpose: text },
+        { place: text },
+        { 'location.name': text },
+        { tags: text },
+      ];
+    }
+
     if (filters?.purpose) {
-      query.purpose = { $regex: filters.purpose, $options: 'i' };
+      query.purpose = containsText(filters.purpose);
     }
 
     if (filters?.place) {
-      query.place = { $regex: filters.place, $options: 'i' };
+      query.place = containsText(filters.place);
+    }
+
+    // Comma-separated; a hangout must carry every requested tag
+    const tags = normalizeTags(filters?.tags);
+    if (tags.length) {
+      query.tags = { $all: tags };
     }
 
     if (filters?.date) {
-      const startDate = new Date(filters.date);
+      const startDate = parseDate(filters.date, 'date')!;
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 1);
 
@@ -140,6 +184,21 @@ export class HangoutsService {
         $gte: startDate,
         $lt: endDate,
       };
+    }
+
+    // Explicit range (the client computes "today", "this weekend"… in the viewer's time zone)
+    const from = parseDate(filters?.from, 'from');
+    const to = parseDate(filters?.to, 'to');
+    if (from || to) {
+      query.time = {
+        ...(query.time ?? {}),
+        ...(from ? { $gte: from } : {}),
+        ...(to ? { $lt: to } : {}),
+      };
+    }
+
+    if (near) {
+      query.geo = nearQuery(near);
     }
 
     const includePast =
@@ -226,21 +285,67 @@ export class HangoutsService {
 
   // Default feed hides finished events and puts the soonest hangout first.
   // includePast=true adds history back, newest first.
-  async findAll(
-    filters?: {
-      purpose?: string;
-      place?: string;
-      date?: string;
-      status?: string;
-      includePast?: boolean | string;
-    },
-    userId?: string,
-  ) {
+  //
+  // "Near me": lat/lng (+ radiusKm, default 10) keeps hangouts whose meeting point is
+  // inside the circle and adds `distanceKm` to each; sort=distance puts the closest first.
+  async findAll(filters?: HangoutFeedFilters, userId?: string) {
     const includePast =
       filters?.includePast === true || filters?.includePast === 'true';
-    const query = this.buildFeedQuery(filters, { includePrivate: false });
+    const near = parseNear(filters ?? {});
+    if (filters?.sort && !['time', 'distance'].includes(filters.sort)) {
+      throw new BadRequestException('sort must be "time" or "distance"');
+    }
+    if (filters?.sort === 'distance' && !near) {
+      throw new BadRequestException('sort=distance needs lat and lng');
+    }
 
-    return this.executeHangoutQuery(query, userId, includePast ? -1 : 1);
+    const query = this.buildFeedQuery(filters, { includePrivate: false }, near);
+    const hangouts = await this.executeHangoutQuery(
+      query,
+      userId,
+      includePast ? -1 : 1,
+    );
+    if (!near) return hangouts;
+
+    type FeedItem = Record<string, unknown> & {
+      geo?: { coordinates?: number[] };
+    };
+    const withDistance = hangouts.map((hangout) => {
+      const plain = (
+        hangout instanceof this.hangoutModel ? hangout.toObject() : hangout
+      ) as FeedItem;
+      const [lng, lat] = plain.geo?.coordinates ?? [];
+      const km =
+        lat == null
+          ? undefined
+          : Math.round(distanceKm(near, { lat, lng }) * 10) / 10;
+      return { ...plain, distanceKm: km };
+    });
+
+    // Array.sort is stable, so equal distances keep the soonest-first order
+    return filters?.sort === 'distance'
+      ? withDistance.sort(
+          (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
+        )
+      : withDistance;
+  }
+
+  // Most used tags on hangouts people can still join, for the home page filter chips
+  async getPopularTags(limit = 15): Promise<{ tag: string; count: number }[]> {
+    return this.hangoutModel.aggregate([
+      {
+        $match: {
+          isPublic: true,
+          status: { $in: [HangoutStatus.UPCOMING, HangoutStatus.ONGOING] },
+          'tags.0': { $exists: true },
+        },
+      },
+      { $unwind: '$tags' },
+      { $group: { _id: '$tags', count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $limit: limit },
+      { $project: { _id: 0, tag: '$_id', count: 1 } },
+    ]);
   }
 
   async findAllAdmin(
@@ -360,7 +465,19 @@ export class HangoutsService {
     if (updateHangoutDto.location === null) {
       // Remove the map location
       delete updateData.location;
-      updateData.$unset = { ...(updateData.$unset ?? {}), location: 1 };
+      updateData.$unset = { ...(updateData.$unset ?? {}), location: 1, geo: 1 };
+    } else if (updateHangoutDto.location) {
+      // Keep the "near me" point in step with the new location
+      const geo = geoFromLocation(updateHangoutDto.location as HangoutLocation);
+      if (geo) {
+        updateData.geo = geo;
+      } else {
+        updateData.$unset = { ...(updateData.$unset ?? {}), geo: 1 };
+      }
+    }
+
+    if (updateHangoutDto.tags) {
+      updateData.tags = normalizeTags(updateHangoutDto.tags);
     }
 
     await this.hangoutModel.findByIdAndUpdate(id, updateData);
@@ -926,6 +1043,33 @@ export class HangoutsService {
       `Backfilled lifecycle status for ${legacy.length} hangout(s)`,
     );
     return { updated: legacy.length };
+  }
+
+  // Hangouts saved before "near me" existed have a map location but no `geo` point.
+  // Fill it in once at boot so they show up in nearby searches.
+  async backfillGeoPoints() {
+    const missing = await this.hangoutModel
+      .find({ location: { $exists: true }, geo: { $exists: false } })
+      .select('location')
+      .lean()
+      .exec();
+
+    const updates = missing
+      .map((hangout) => ({
+        _id: hangout._id,
+        geo: geoFromLocation(hangout.location),
+      }))
+      .filter((entry) => entry.geo);
+    if (!updates.length) return { updated: 0 };
+
+    await this.hangoutModel.bulkWrite(
+      updates.map(({ _id, geo }) => ({
+        updateOne: { filter: { _id }, update: { $set: { geo } } },
+      })),
+    );
+
+    this.logger.log(`Backfilled map points for ${updates.length} hangout(s)`);
+    return { updated: updates.length };
   }
 
   // Sends one alert per reminder window that has just come due, to every

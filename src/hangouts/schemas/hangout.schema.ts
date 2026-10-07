@@ -1,6 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { HangoutLocation, HangoutLocationSchema } from './hangout-location.schema';
+import {
+  GeoJsonPoint,
+  GeoJsonPointSchema,
+  HangoutLocation,
+  HangoutLocationSchema,
+} from './hangout-location.schema';
 
 export enum HangoutStatus {
   UPCOMING = 'upcoming',
@@ -30,6 +35,14 @@ export class Hangout extends Document {
   // Optional map location (place/landmark or from → to route)
   @Prop({ type: HangoutLocationSchema })
   location?: HangoutLocation;
+
+  // Copy of the location's meeting point for "near me" search. Kept in sync on create/update.
+  @Prop({ type: GeoJsonPointSchema })
+  geo?: GeoJsonPoint;
+
+  // Free-form labels such as "hiking" or "board-games", lowercase
+  @Prop({ type: [String], default: [] })
+  tags: string[];
 
   @Prop({ required: true })
   time: Date;
@@ -94,3 +107,7 @@ export const HangoutSchema = SchemaFactory.createForClass(Hangout);
 HangoutSchema.index({ status: 1, time: 1 });
 HangoutSchema.index({ time: 1, status: 1 });
 HangoutSchema.index({ isPublic: 1, status: 1, time: 1 });
+
+// "Near me" discovery and tag filters
+HangoutSchema.index({ geo: '2dsphere' });
+HangoutSchema.index({ tags: 1 });

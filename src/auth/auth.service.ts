@@ -19,6 +19,8 @@ import { EmailService } from '../common/services/email.service';
 /** Password reset links live this long, and each link works exactly once. */
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -109,6 +111,119 @@ export class AuthService {
 
   async findById(id: string): Promise<User | null> {
     return this.userModel.findById(id);
+  }
+
+  /** The current user, safe to send to the client. */
+  async getMe(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      verified: user.verified,
+    };
+  }
+
+  /**
+   * Signs in (or creates) the account behind a Google/Facebook login and
+   * returns the same shape as signIn/signUp, i.e. an access token + user.
+   *
+   * Linking rules:
+   * - A provider-verified email is matched against existing accounts, so a
+   *   social login attaches to an already-registered email/password account.
+   * - An email the provider has NOT verified is never used: otherwise anyone
+   *   could add someone else's address to a Google account and take over
+   *   that person's Hangouts account. Such logins match by provider id only.
+   * - A provider-verified email marks the account as verified.
+   */
+  async signInWithSocial(profile: {
+    provider: 'google' | 'facebook';
+    providerId: string;
+    email?: string | null;
+    emailVerified?: boolean;
+    name?: string | null;
+  }) {
+    const { provider, providerId, name } = profile;
+    const email = profile.emailVerified ? profile.email?.trim().toLowerCase() || null : null;
+    const providerField = provider === 'google' ? 'googleId' : 'facebookId';
+
+    // The account already linked to this provider id wins (the person may have
+    // changed their email at Google/Facebook since); otherwise match by email.
+    // Signup stores emails as typed, so the email match is case-insensitive.
+    let user = await this.userModel.findOne({ [providerField]: providerId });
+    if (!user && email) {
+      user = await this.userModel.findOne({
+        email: new RegExp(`^${escapeRegExp(email)}$`, 'i'),
+      });
+    }
+
+    if (!user && email) {
+      user = new this.userModel({
+        name: name || email.split('@')[0] || 'Hangouts User',
+        email,
+        // Social logins have no password of their own; store a hash of an
+        // unguessable value so password sign-in simply never matches.
+        passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
+        verified: true,
+        [providerField]: providerId,
+      });
+      try {
+        await user.save();
+      } catch (error) {
+        // Two first-time logins can race; losing one just means the email
+        // already exists, so fall back to matching that account.
+        if ((error as { code?: number }).code === 11000) {
+          user = await this.userModel.findOne({ email: new RegExp(`^${escapeRegExp(email)}$`, 'i') });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!user) {
+      const label = provider === 'google' ? 'Google' : 'Facebook';
+      throw new UnauthorizedException(
+        profile.email
+          ? `Your ${label} email address isn't verified yet. Verify it with ${label}, or sign up with email instead.`
+          : `${label} did not share your email address, so no account can be created. Allow email access, or sign up with email instead.`,
+      );
+    }
+
+    // Link the external id and trust the provider's identity on the account.
+    let changed = false;
+    if (!user[providerField]) {
+      user[providerField] = providerId;
+      changed = true;
+    }
+    if (email && !user.verified) {
+      user.verified = true;
+      changed = true;
+    }
+    if (changed) {
+      await user.save();
+    }
+
+    return this.issueTokenForUser(user);
+  }
+
+  /** Builds the token + user payload shared by every sign-in path. */
+  private issueTokenForUser(user: User) {
+    const payload = { sub: user._id, email: user.email, role: user.role };
+    const token = this.jwtService.sign(payload);
+    return {
+      access_token: token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+      },
+    };
   }
 
   // ---- Password reset ----

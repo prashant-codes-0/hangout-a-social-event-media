@@ -21,6 +21,7 @@ import {
   ApiQuery
 } from '@nestjs/swagger';
 import { HangoutsService } from './hangouts.service';
+import type { HangoutFeedFilters } from './hangouts.service';
 import { CreateHangoutDto, UpdateHangoutDto, UpdateHangoutStatusDto } from './dto/hangout.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
@@ -69,23 +70,31 @@ export class HangoutsController {
     required: false,
     description: 'true to include completed and cancelled hangouts, newest first',
   })
+  @ApiQuery({ name: 'q', required: false, description: 'Search title, description, category, place and tags' })
+  @ApiQuery({ name: 'tags', required: false, description: 'Comma-separated tags; a hangout must have all of them' })
+  @ApiQuery({ name: 'from', required: false, description: 'Starts at or after this time (ISO 8601)' })
+  @ApiQuery({ name: 'to', required: false, description: 'Starts before this time (ISO 8601)' })
+  @ApiQuery({ name: 'lat', required: false, description: 'Near me: latitude (use with lng)' })
+  @ApiQuery({ name: 'lng', required: false, description: 'Near me: longitude (use with lat)' })
+  @ApiQuery({ name: 'radiusKm', required: false, description: 'Near me: search radius in km (default 10, max 500)' })
+  @ApiQuery({ name: 'sort', required: false, enum: ['time', 'distance'], description: 'distance needs lat/lng' })
   @ApiResponse({
     status: 200,
-    description: 'List of hangouts with blast status',
+    description: 'List of hangouts with blast status (and distanceKm when lat/lng are given)',
     type: [HangoutResponseDto]
   })
   findAll(
-    @Query() filters: {
-      purpose?: string;
-      place?: string;
-      date?: string;
-      status?: string;
-      includePast?: string;
-    },
+    @Query() filters: HangoutFeedFilters,
     @Request() req?,
   ) {
     const userId = req?.user?.id;
     return this.hangoutsService.findAll(filters, userId);
+  }
+
+  @Get('tags/popular')
+  @ApiOperation({ summary: 'Most used tags on public hangouts that are upcoming or live' })
+  getPopularTags() {
+    return this.hangoutsService.getPopularTags();
   }
 
   @UseGuards(AuthGuard('jwt'))

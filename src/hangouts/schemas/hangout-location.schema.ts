@@ -65,4 +65,17 @@ export class HangoutLocation {
   travelMode?: TravelMode;
 }
 
-export const HangoutLocationSchema = SchemaFactory.createForClass(HangoutLocation);
+export const HangoutLocationSchema =
+  SchemaFactory.createForClass(HangoutLocation);
+
+// GeoJSON point ([lng, lat]) used by the hangout's 2dsphere "near me" index
+@Schema({ _id: false })
+export class GeoJsonPoint {
+  @Prop({ type: String, enum: ['Point'], required: true })
+  type: 'Point';
+
+  @Prop({ type: [Number], required: true })
+  coordinates: number[];
+}
+
+export const GeoJsonPointSchema = SchemaFactory.createForClass(GeoJsonPoint);

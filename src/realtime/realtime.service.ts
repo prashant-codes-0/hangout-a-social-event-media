@@ -33,6 +33,13 @@ export class RealtimeService {
     userIds.forEach((userId) => this.emitToUser(userId, event, payload));
   }
 
+  // True while the user has the app open somewhere (any connected socket)
+  async isUserOnline(userId: string): Promise<boolean> {
+    if (!this.server) return false;
+    const sockets = await this.server.in(`user_${userId}`).fetchSockets();
+    return sockets.length > 0;
+  }
+
   // Ids of users with at least one socket currently in a room (e.g. viewing a hangout chat)
   async userIdsInRoom(room: string): Promise<Set<string>> {
     if (!this.server) return new Set();
