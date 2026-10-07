@@ -110,6 +110,15 @@ export class CreateHangoutDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Repeat this hangout: when it finishes, the next occurrence is created automatically',
+    enum: ['daily', 'weekly', 'monthly'],
+    example: 'weekly',
+  })
+  @IsOptional()
+  @IsIn(['daily', 'weekly', 'monthly'])
+  recurrence?: 'daily' | 'weekly' | 'monthly';
 }
 
 export class UpdateHangoutDto {
@@ -204,6 +213,15 @@ export class UpdateHangoutDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Change how this hangout repeats after it finishes',
+    enum: ['daily', 'weekly', 'monthly'],
+    example: 'weekly',
+  })
+  @IsOptional()
+  @IsIn(['daily', 'weekly', 'monthly'])
+  recurrence?: 'daily' | 'weekly' | 'monthly';
 }
 
 // Manual lifecycle control by the organizer or an admin. Everything except

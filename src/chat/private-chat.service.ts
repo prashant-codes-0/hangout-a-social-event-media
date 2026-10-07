@@ -12,6 +12,14 @@ import { MAX_PINNED } from './chat.service';
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
+import { escapeRegex } from '../hangouts/hangout-search';
+
+// Message ids are stored as strings (the schema's ObjectId type resolves to Mixed), but match
+// ObjectIds too so the query keeps working if that is ever fixed
+function idForms(id: unknown) {
+  const text = String(id);
+  return { $in: Types.ObjectId.isValid(text) ? [text, new Types.ObjectId(text)] : [text] };
+}
 
 @Injectable()
 export class PrivateChatService {
@@ -200,8 +208,9 @@ export class PrivateChatService {
     return { chat, me: me as any, peerId: (peer as any)._id.toString() };
   }
 
+  // Your chats in a hangout, each with how many messages you haven't read yet
   async getChatsForHangout(hangoutId: string, userId: string) {
-    return this.privateChatModel
+    const chats = await this.privateChatModel
       .find({
         hangoutId,
         $or: [{ requester: userId }, { recipient: userId }],
@@ -210,6 +219,54 @@ export class PrivateChatService {
       .populate('recipient', 'name email')
       .sort({ updatedAt: -1 })
       .exec();
+    return Promise.all(
+      chats.map(async (chat) => ({
+        ...chat.toJSON(),
+        unread:
+          chat.status === PrivateChatStatus.ACCEPTED ? await this.unreadCount(chat, userId) : 0,
+      })),
+    );
+  }
+
+  // Messages from the other person since you last opened the chat
+  unreadCount(chat: PrivateChat, userId: string) {
+    const lastRead = chat.lastRead?.get(userId);
+    return this.privateMessageModel.countDocuments({
+      chatId: idForms(chat._id),
+      senderId: { $nin: idForms(userId).$in },
+      ...(lastRead ? { createdAt: { $gt: lastRead } } : {}),
+    });
+  }
+
+  // You've seen everything in this chat up to now
+  async markRead(chatId: string, userId: string) {
+    const chat = await this.getChatForParticipant(chatId, userId);
+    const readAt = new Date();
+    await this.privateChatModel.updateOne(
+      { _id: chat._id },
+      { $set: { [`lastRead.${userId}`]: readAt } },
+      { timestamps: false }, // reading isn't activity; keep the chat's order
+    );
+    return { chatId: String(chat._id), readAt };
+  }
+
+  // Text search in one private chat, newest first
+  async searchMessages(chatId: string, userId: string, query: string) {
+    const chat = await this.getChatForParticipant(chatId, userId);
+    const text = (query ?? '').trim();
+    if (text.length < 2) return { items: [] };
+    const items = await this.privateMessageModel
+      .find({
+        chatId: idForms(chat._id),
+        messageType: 'text',
+        content: { $regex: escapeRegex(text.slice(0, 100)), $options: 'i' },
+      })
+      .sort({ createdAt: -1 })
+      .limit(30)
+      .select('content senderId createdAt')
+      .populate('senderId', 'name')
+      .lean();
+    return { items };
   }
 
   async getMessages(chatId: string, userId: string, limit = 50, skip = 0) {
@@ -246,6 +303,8 @@ export class PrivateChatService {
     await message.populate('senderId', 'name email');
 
     chat.lastMessageAt = new Date();
+    // Writing in a chat means you've seen everything in it
+    chat.set(`lastRead.${userId}`, chat.lastMessageAt);
     await chat.save();
 
     // One unread alert per chat that keeps a count, rather than one per message

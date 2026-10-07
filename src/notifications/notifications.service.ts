@@ -147,7 +147,9 @@ export class NotificationsService {
       };
     } else if (context.hangoutId && Types.ObjectId.isValid(context.hangoutId)) {
       query.hangoutId = context.hangoutId;
-      query.type = NotificationType.GROUP_MESSAGE;
+      query.type = {
+        $in: [NotificationType.GROUP_MESSAGE, NotificationType.MENTION],
+      };
     } else {
       return { updated: 0 };
     }

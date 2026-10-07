@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User } from '../auth/schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
@@ -31,8 +31,17 @@ import {
   parseDate,
   parseNear,
 } from './hangout-search';
+import { ActivityService } from '../social/activity.service';
+import { ActivityVerb } from '../social/schemas/activity.schema';
+import { SocialService } from '../social/social.service';
 import { HangoutLocation } from './schemas/hangout-location.schema';
 import { Hangout, HangoutStatus } from './schemas/hangout.schema';
+
+// A hangout as returned by the public feed (plain object plus per-viewer extras)
+type FeedHangout = Record<string, unknown> & {
+  _id: unknown;
+  attendees?: unknown[];
+};
 
 // Query params accepted by the public feed
 export interface HangoutFeedFilters {
@@ -70,6 +79,8 @@ export class HangoutsService {
     @InjectModel(User.name)
     private userModel: Model<User>,
     private notifications: NotificationsService,
+    private activity: ActivityService,
+    private social: SocialService,
   ) {}
 
   // ---- Join request alerts (fire and forget; NotificationsService never throws) ----
@@ -136,7 +147,11 @@ export class HangoutsService {
       attendees: [userId], // Creator automatically joins their own hangout
     });
 
-    return hangout.save();
+    const saved = await hangout.save();
+    void this.activity.record(userId, ActivityVerb.HOSTING, {
+      hangoutId: String(saved._id),
+    });
+    return saved;
   }
 
   private buildFeedQuery(
@@ -305,7 +320,7 @@ export class HangoutsService {
       userId,
       includePast ? -1 : 1,
     );
-    if (!near) return hangouts;
+    if (!near) return this.withFriendsGoing(hangouts, userId);
 
     type FeedItem = Record<string, unknown> & {
       geo?: { coordinates?: number[] };
@@ -323,11 +338,35 @@ export class HangoutsService {
     });
 
     // Array.sort is stable, so equal distances keep the soonest-first order
-    return filters?.sort === 'distance'
-      ? withDistance.sort(
-          (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
-        )
-      : withDistance;
+    const sorted =
+      filters?.sort === 'distance'
+        ? withDistance.sort(
+            (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
+          )
+        : withDistance;
+    return this.withFriendsGoing(sorted, userId);
+  }
+
+  // Signed-in viewers see which people they follow are going: friendsGoing (up to 3 names)
+  // and friendsGoingCount on each hangout
+  private async withFriendsGoing(
+    hangouts: readonly object[],
+    userId?: string,
+  ): Promise<FeedHangout[]> {
+    const plain = hangouts.map(
+      (h) =>
+        (typeof (h as { toObject?: unknown }).toObject === 'function'
+          ? (h as { toObject: () => object }).toObject()
+          : h) as FeedHangout,
+    );
+    if (!userId || !plain.length) return plain;
+    const friends = await this.social.friendsGoing(userId, plain);
+    return plain.map((h) => {
+      const match = friends.get(String(h._id));
+      return match
+        ? { ...h, friendsGoing: match.people, friendsGoingCount: match.count }
+        : h;
+    });
   }
 
   // Most used tags on hangouts people can still join, for the home page filter chips
@@ -498,6 +537,7 @@ export class HangoutsService {
 
     await this.hangoutModel.findByIdAndDelete(id);
     await this.joinRequestModel.deleteMany({ hangoutId: id });
+    void this.activity.removeForHangout(id);
     return { message: 'Hangout deleted successfully' };
   }
 
@@ -593,6 +633,13 @@ export class HangoutsService {
       if (!hangout.attendees.includes(joinRequest.userId)) {
         hangout.attendees.push(joinRequest.userId);
         await hangout.save();
+        void this.activity.record(
+          String(joinRequest.userId),
+          ActivityVerb.GOING,
+          {
+            hangoutId: String(hangout._id),
+          },
+        );
       }
     }
 
@@ -667,6 +714,11 @@ export class HangoutsService {
     }
 
     await hangout.save();
+    if (action === 'approve') {
+      void this.activity.record(requestedUserId, ActivityVerb.GOING, {
+        hangoutId: String(hangout._id),
+      });
+    }
     this.alertJoinDecision(
       hangout,
       requestedUserId,
@@ -806,6 +858,7 @@ export class HangoutsService {
     });
 
     await hangout.save();
+    void this.activity.remove(userId, ActivityVerb.GOING, { hangoutId });
 
     return {
       message: 'Successfully left the hangout',
@@ -877,6 +930,7 @@ export class HangoutsService {
       );
       action = 'left';
       message = 'Successfully left the hangout';
+      void this.activity.remove(userId, ActivityVerb.GOING, { hangoutId });
 
       // Also remove any legacy join requests
       await this.joinRequestModel.deleteMany({
@@ -1148,7 +1202,7 @@ export class HangoutsService {
         status: { $in: [HangoutStatus.UPCOMING, HangoutStatus.ONGOING] },
         time: { $lte: now },
       })
-      .select('_id title place time durationMinutes attendees status')
+      .select('_id title place time durationMinutes attendees status recurrence')
       .lean()
       .exec();
 
@@ -1156,6 +1210,7 @@ export class HangoutsService {
 
     const operations: any[] = [];
     const justStarted: typeof due = [];
+    const justCompleted: typeof due = [];
 
     for (const hangout of due) {
       const next = deriveHangoutStatus(
@@ -1194,11 +1249,19 @@ export class HangoutsService {
             },
           },
         });
+        justCompleted.push(hangout);
       }
     }
 
     if (operations.length) {
       await this.hangoutModel.bulkWrite(operations);
+    }
+
+    for (const hangout of justCompleted) {
+      await this.nudgeRatings(hangout._id, hangout.title, hangout.attendees);
+      if (hangout.recurrence) {
+        await this.spawnNextOccurrence(hangout._id);
+      }
     }
 
     for (const hangout of justStarted) {
@@ -1233,9 +1296,90 @@ export class HangoutsService {
     };
   }
 
+  // One-shot "how was it?" nudge when a hangout finishes; the ratingsNudged
+  // flag makes it idempotent no matter which path completed the hangout.
+  private async nudgeRatings(hangoutId: any, title: string, attendees: Types.ObjectId[]) {
+    const claimed = await this.hangoutModel.updateOne(
+      { _id: hangoutId, ratingsNudged: { $ne: true } },
+      { $set: { ratingsNudged: true } },
+    );
+    if (!claimed.modifiedCount) return;
+
+    for (const attendee of attendees) {
+      this.notifications.notify(attendee.toString(), {
+        type: NotificationType.HANGOUT_RATE,
+        hangoutId: String(hangoutId),
+        title: 'How was it?',
+        body: `${title} has wrapped up — rate the people you met`,
+        link: `/hangouts/details/${hangoutId}?rate=1`,
+      });
+    }
+  }
+
+  // Recurring hangouts: clone this one into its next slot so the series keeps
+  // going. The seriesSpawned flag makes it idempotent like nudgeRatings.
+  private async spawnNextOccurrence(hangoutId: any) {
+    const claim = await this.hangoutModel.updateOne(
+      { _id: hangoutId, seriesSpawned: { $ne: true } },
+      { $set: { seriesSpawned: true } },
+    );
+    if (!claim.modifiedCount) return;
+
+    const parent = await this.hangoutModel.findById(hangoutId);
+    if (!parent?.recurrence) return;
+
+    const nextTime = this.nextOccurrenceTime(parent.time, parent.recurrence);
+    if (!nextTime) return;
+
+    const created = await this.hangoutModel.create({
+      title: parent.title,
+      description: parent.description,
+      purpose: parent.purpose,
+      place: parent.place,
+      location: parent.location,
+      geo: parent.geo,
+      tags: parent.tags,
+      time: nextTime,
+      durationMinutes: parent.durationMinutes,
+      capacity: parent.capacity,
+      isPublic: parent.isPublic,
+      sponsored: parent.sponsored,
+      sponsorId: parent.sponsorId,
+      createdBy: parent.createdBy,
+      attendees: parent.attendees,
+      recurrence: parent.recurrence,
+      status: HangoutStatus.UPCOMING,
+      remindersSent: [],
+    });
+
+    for (const attendee of parent.attendees) {
+      this.notifications.notify(attendee.toString(), {
+        type: NotificationType.HANGOUT_REMINDER,
+        hangoutId: String(created._id),
+        title: 'Up next in this series',
+        body: `${parent.title} · ${formatHangoutWhen(nextTime)}`,
+        link: `/hangouts/details/${created._id}`,
+      });
+    }
+  }
+
+  // First slot of the series that still lies ahead of now; null if none is left
+  private nextOccurrenceTime(from: Date, freq: 'daily' | 'weekly' | 'monthly'): Date | null {
+    const next = new Date(from);
+    const step = () => {
+      if (freq === 'daily') next.setDate(next.getDate() + 1);
+      else if (freq === 'weekly') next.setDate(next.getDate() + 7);
+      else next.setMonth(next.getMonth() + 1);
+    };
+    for (let i = 0; i < 400; i++) {
+      step();
+      if (next.getTime() > Date.now() + MINUTE) return next;
+    }
+    return null;
+  }
+
   private alertCancelled(hangout: Hangout, cancelledById: string) {
     const reason = hangout.cancelReason ? ` — ${hangout.cancelReason}` : '';
-
     for (const attendee of hangout.attendees) {
       this.notifications.notify(attendee.toString(), {
         type: NotificationType.HANGOUT_CANCELLED,
@@ -1313,6 +1457,11 @@ export class HangoutsService {
         },
       );
 
+      await this.nudgeRatings(hangout._id, hangout.title, hangout.attendees);
+      if (hangout.recurrence) {
+        await this.spawnNextOccurrence(hangout._id);
+      }
+
       return this.findOne(hangoutId);
     }
 
@@ -1327,7 +1476,7 @@ export class HangoutsService {
           // A revived hangout needs a fresh reminder plan
           remindersSent: [],
         },
-        $unset: { cancelledAt: 1, cancelReason: 1, completedAt: 1 },
+        $unset: { cancelledAt: 1, cancelReason: 1, completedAt: 1, ratingsNudged: 1 },
       },
     );
 

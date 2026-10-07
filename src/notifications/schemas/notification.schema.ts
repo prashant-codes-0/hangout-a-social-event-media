@@ -14,6 +14,12 @@ export enum NotificationType {
   HANGOUT_REMINDER = 'hangout_reminder',
   HANGOUT_CANCELLED = 'hangout_cancelled',
   HANGOUT_STARTED = 'hangout_started',
+  NEW_FOLLOWER = 'new_follower',
+  MENTION = 'mention',
+  // Organizer applied a poll result to the hangout time/place
+  HANGOUT_UPDATED = 'hangout_updated',
+  // The hangout finished: nudge everyone to rate the people they met
+  HANGOUT_RATE = 'hangout_rate',
 }
 
 // Alerts are removed automatically after this long

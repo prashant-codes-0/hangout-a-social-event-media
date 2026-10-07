@@ -9,6 +9,7 @@ import { HangoutsModule } from './hangouts/hangouts.module';
 import { ChatModule } from './chat/chat.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SocialModule } from './social/social.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AuthModule,
     HangoutsModule,
     ChatModule,
+    SocialModule,
   ],
   controllers: [AppController],
   providers: [AppService],

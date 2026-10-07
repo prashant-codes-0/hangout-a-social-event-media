@@ -281,20 +281,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     ) {
         try {
             const { messageId, editMessageDto } = data;
+            // The service broadcasts the edited message to the hangout room
             const message = await this.chatService.editMessage(messageId, editMessageDto, client.userId!);
-
-            // Broadcast edited message to other users in the hangout room (excluding sender)
-            client.to(`hangout_${message.hangoutId}`).emit('messageEdited', {
-                _id: message._id,
-                hangoutId: message.hangoutId,
-                userId: message.userId,
-                content: message.content,
-                messageType: message.messageType,
-                isEdited: message.isEdited,
-                editedAt: message.editedAt,
-                createdAt: (message as any).createdAt,
-                updatedAt: (message as any).updatedAt,
-            });
 
             // Send confirmation back to sender
             client.emit('messageEditConfirmed', {

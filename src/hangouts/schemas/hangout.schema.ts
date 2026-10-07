@@ -18,6 +18,11 @@ export enum HangoutStatus {
 // did not pick an explicit duration.
 export const DEFAULT_DURATION_MINUTES = 120;
 
+// Repeat cadence for a recurring hangout: the next occurrence is cloned
+// automatically when the current one finishes.
+export type HangoutRecurrenceFreq = 'daily' | 'weekly' | 'monthly';
+export const HANGOUT_RECURRENCE_FREQS: HangoutRecurrenceFreq[] = ['daily', 'weekly', 'monthly'];
+
 @Schema({ timestamps: true })
 export class Hangout extends Document {
   @Prop({ required: true })
@@ -68,6 +73,10 @@ export class Hangout extends Document {
   @Prop()
   completedAt?: Date;
 
+  // The "how was it?" rating nudge only ever goes out once per completion
+  @Prop({ default: false })
+  ratingsNudged?: boolean;
+
   // Reminder windows already delivered, e.g. ['24h', '2h'].
   // Reset whenever the start time changes so the new time gets fresh reminders.
   @Prop({ type: [String], default: [] })
@@ -99,6 +108,21 @@ export class Hangout extends Document {
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   createdBy: Types.ObjectId;
+
+  // Code attendees enter (or scan from the QR) to check in at the venue
+  @Prop()
+  checkInCode?: string;
+
+  @Prop({ type: Date })
+  checkInCodeExpiresAt?: Date;
+
+  // Recurring series: when this hangout finishes, the next one is cloned
+  @Prop({ enum: HANGOUT_RECURRENCE_FREQS })
+  recurrence?: HangoutRecurrenceFreq;
+
+  // Ensures the next occurrence is only ever created once
+  @Prop({ default: false })
+  seriesSpawned?: boolean;
 }
 
 export const HangoutSchema = SchemaFactory.createForClass(Hangout);

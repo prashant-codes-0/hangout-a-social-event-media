@@ -23,6 +23,10 @@ export class PrivateChat extends Document {
 
   @Prop({ type: Date })
   lastMessageAt?: Date;
+
+  // userId -> when they last read this chat (drives unread counts)
+  @Prop({ type: Map, of: Date, default: {} })
+  lastRead: Map<string, Date>;
 }
 
 export const PrivateChatSchema = SchemaFactory.createForClass(PrivateChat);

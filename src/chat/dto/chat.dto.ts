@@ -1,4 +1,8 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, MinLength, ValidateNested, IsInt, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
+
+const MAX_MENTIONS = 20;
+const MAX_POLL_OPTIONS = 6;
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SendMessageDto {
@@ -36,6 +40,17 @@ export class SendMessageDto {
   @IsOptional()
   @IsMongoId()
   replyToId?: string;
+
+  @ApiProperty({
+    description: 'Ids of members tagged with @Name in the text (each gets an alert)',
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_MENTIONS)
+  @IsMongoId({ each: true })
+  mentions?: string[];
 }
 
 export class ReactDto {
@@ -60,6 +75,78 @@ export class EditMessageDto {
   @IsString()
   @IsNotEmpty()
   content: string;
+
+  @ApiProperty({
+    description: 'Ids of members tagged in the new text; newly tagged members get an alert',
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_MENTIONS)
+  @IsMongoId({ each: true })
+  mentions?: string[];
+}
+
+export class PollOptionDto {
+  @ApiProperty({ description: 'Choice shown to voters', example: 'Saturday 6 PM' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  text: string;
+
+  @ApiProperty({
+    description:
+      'Machine value for the choice: an ISO date/time when the poll kind is "time", or the place text when it is "place"',
+    example: '2026-10-10T18:00:00.000Z',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  value?: string;
+}
+
+export class CreatePollDto {
+  @ApiProperty({ description: 'Poll question shown in chat', example: 'Which time works for everyone?' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  question: string;
+
+  @ApiProperty({ description: 'Choices (2-6)', type: [PollOptionDto] })
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(MAX_POLL_OPTIONS)
+  @ValidateNested({ each: true })
+  @Type(() => PollOptionDto)
+  options: PollOptionDto[];
+
+  @ApiProperty({
+    description: 'What the winning option may change on the hangout',
+    enum: ['general', 'time', 'place'],
+    default: 'general',
+  })
+  @IsOptional()
+  @IsEnum(['general', 'time', 'place'])
+  kind?: 'general' | 'time' | 'place';
+
+  @ApiProperty({
+    description: 'Optional voting deadline in hours from now',
+    example: 24,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(24 * 30)
+  expiresInHours?: number;
+}
+
+export class VotePollDto {
+  @ApiProperty({ description: 'The option being voted for', example: '507f1f77bcf86cd799439055' })
+  @IsMongoId()
+  optionId: string;
 }
 
 export class MessageResponseDto {
