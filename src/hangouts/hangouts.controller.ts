@@ -51,6 +51,8 @@ export class HangoutsController {
     return this.hangoutsService.create(createHangoutDto, req.user.id);
   }
 
+  // Optional sign-in: personalises the list (your status, people you follow who are going)
+  @UseGuards(OptionalJwtGuard)
   @Get()
   @ApiOperation({
     summary:

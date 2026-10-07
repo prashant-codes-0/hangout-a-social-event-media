@@ -14,6 +14,7 @@ export enum NotificationType {
   HANGOUT_REMINDER = 'hangout_reminder',
   HANGOUT_CANCELLED = 'hangout_cancelled',
   HANGOUT_STARTED = 'hangout_started',
+  NEW_FOLLOWER = 'new_follower',
 }
 
 // Alerts are removed automatically after this long

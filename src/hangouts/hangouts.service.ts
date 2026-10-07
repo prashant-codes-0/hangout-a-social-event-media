@@ -31,8 +31,17 @@ import {
   parseDate,
   parseNear,
 } from './hangout-search';
+import { ActivityService } from '../social/activity.service';
+import { ActivityVerb } from '../social/schemas/activity.schema';
+import { SocialService } from '../social/social.service';
 import { HangoutLocation } from './schemas/hangout-location.schema';
 import { Hangout, HangoutStatus } from './schemas/hangout.schema';
+
+// A hangout as returned by the public feed (plain object plus per-viewer extras)
+type FeedHangout = Record<string, unknown> & {
+  _id: unknown;
+  attendees?: unknown[];
+};
 
 // Query params accepted by the public feed
 export interface HangoutFeedFilters {
@@ -70,6 +79,8 @@ export class HangoutsService {
     @InjectModel(User.name)
     private userModel: Model<User>,
     private notifications: NotificationsService,
+    private activity: ActivityService,
+    private social: SocialService,
   ) {}
 
   // ---- Join request alerts (fire and forget; NotificationsService never throws) ----
@@ -136,7 +147,11 @@ export class HangoutsService {
       attendees: [userId], // Creator automatically joins their own hangout
     });
 
-    return hangout.save();
+    const saved = await hangout.save();
+    void this.activity.record(userId, ActivityVerb.HOSTING, {
+      hangoutId: String(saved._id),
+    });
+    return saved;
   }
 
   private buildFeedQuery(
@@ -305,7 +320,7 @@ export class HangoutsService {
       userId,
       includePast ? -1 : 1,
     );
-    if (!near) return hangouts;
+    if (!near) return this.withFriendsGoing(hangouts, userId);
 
     type FeedItem = Record<string, unknown> & {
       geo?: { coordinates?: number[] };
@@ -323,11 +338,35 @@ export class HangoutsService {
     });
 
     // Array.sort is stable, so equal distances keep the soonest-first order
-    return filters?.sort === 'distance'
-      ? withDistance.sort(
-          (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
-        )
-      : withDistance;
+    const sorted =
+      filters?.sort === 'distance'
+        ? withDistance.sort(
+            (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
+          )
+        : withDistance;
+    return this.withFriendsGoing(sorted, userId);
+  }
+
+  // Signed-in viewers see which people they follow are going: friendsGoing (up to 3 names)
+  // and friendsGoingCount on each hangout
+  private async withFriendsGoing(
+    hangouts: readonly object[],
+    userId?: string,
+  ): Promise<FeedHangout[]> {
+    const plain = hangouts.map(
+      (h) =>
+        (typeof (h as { toObject?: unknown }).toObject === 'function'
+          ? (h as { toObject: () => object }).toObject()
+          : h) as FeedHangout,
+    );
+    if (!userId || !plain.length) return plain;
+    const friends = await this.social.friendsGoing(userId, plain);
+    return plain.map((h) => {
+      const match = friends.get(String(h._id));
+      return match
+        ? { ...h, friendsGoing: match.people, friendsGoingCount: match.count }
+        : h;
+    });
   }
 
   // Most used tags on hangouts people can still join, for the home page filter chips
@@ -498,6 +537,7 @@ export class HangoutsService {
 
     await this.hangoutModel.findByIdAndDelete(id);
     await this.joinRequestModel.deleteMany({ hangoutId: id });
+    void this.activity.removeForHangout(id);
     return { message: 'Hangout deleted successfully' };
   }
 
@@ -593,6 +633,13 @@ export class HangoutsService {
       if (!hangout.attendees.includes(joinRequest.userId)) {
         hangout.attendees.push(joinRequest.userId);
         await hangout.save();
+        void this.activity.record(
+          String(joinRequest.userId),
+          ActivityVerb.GOING,
+          {
+            hangoutId: String(hangout._id),
+          },
+        );
       }
     }
 
@@ -667,6 +714,11 @@ export class HangoutsService {
     }
 
     await hangout.save();
+    if (action === 'approve') {
+      void this.activity.record(requestedUserId, ActivityVerb.GOING, {
+        hangoutId: String(hangout._id),
+      });
+    }
     this.alertJoinDecision(
       hangout,
       requestedUserId,
@@ -806,6 +858,7 @@ export class HangoutsService {
     });
 
     await hangout.save();
+    void this.activity.remove(userId, ActivityVerb.GOING, { hangoutId });
 
     return {
       message: 'Successfully left the hangout',
@@ -877,6 +930,7 @@ export class HangoutsService {
       );
       action = 'left';
       message = 'Successfully left the hangout';
+      void this.activity.remove(userId, ActivityVerb.GOING, { hangoutId });
 
       // Also remove any legacy join requests
       await this.joinRequestModel.deleteMany({

@@ -13,10 +13,15 @@ const USER_ID = 'b00000000000000000000002';
 
 function createPushService(
   subscriptions: { endpoint: string; keys: object }[],
-  env: Record<string, string> = { VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' },
+  env: Record<string, string> = {
+    VAPID_PUBLIC_KEY: 'pub',
+    VAPID_PRIVATE_KEY: 'priv',
+  },
 ) {
   const model = {
-    find: jest.fn(() => ({ lean: () => ({ exec: () => Promise.resolve(subscriptions) }) })),
+    find: jest.fn(() => ({
+      lean: () => ({ exec: () => Promise.resolve(subscriptions) }),
+    })),
     deleteMany: jest.fn(() => Promise.resolve({ deletedCount: 1 })),
     updateMany: jest.fn(() => Promise.resolve({})),
   };
@@ -51,7 +56,10 @@ describe('PushService', () => {
       { endpoint: 'https://push/b', keys: {} },
     ]);
 
-    expect(await service.sendToUser(USER_ID, payload)).toEqual({ sent: 2, removed: 0 });
+    expect(await service.sendToUser(USER_ID, payload)).toEqual({
+      sent: 2,
+      removed: 0,
+    });
     expect(sendNotification).toHaveBeenCalledTimes(2);
     const [, body, options] = sendNotification.mock.calls[0];
     expect(JSON.parse(body)).toEqual(payload);
@@ -61,8 +69,12 @@ describe('PushService', () => {
 
   it('removes subscriptions the push service says are gone (404/410)', async () => {
     sendNotification
-      .mockRejectedValueOnce(Object.assign(new Error('Gone'), { statusCode: 410 }))
-      .mockRejectedValueOnce(Object.assign(new Error('Not found'), { statusCode: 404 }))
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Gone'), { statusCode: 410 }),
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Not found'), { statusCode: 404 }),
+      )
       .mockResolvedValueOnce({ statusCode: 201 });
     const { service, model } = createPushService([
       { endpoint: 'https://push/gone', keys: {} },
@@ -70,17 +82,27 @@ describe('PushService', () => {
       { endpoint: 'https://push/ok', keys: {} },
     ]);
 
-    expect(await service.sendToUser(USER_ID, payload)).toEqual({ sent: 1, removed: 2 });
+    expect(await service.sendToUser(USER_ID, payload)).toEqual({
+      sent: 1,
+      removed: 2,
+    });
     expect(model.deleteMany).toHaveBeenCalledWith({
       endpoint: { $in: ['https://push/gone', 'https://push/missing'] },
     });
   });
 
   it('keeps the subscription and does not throw on other errors', async () => {
-    sendNotification.mockRejectedValue(Object.assign(new Error('Server error'), { statusCode: 500 }));
-    const { service, model } = createPushService([{ endpoint: 'https://push/a', keys: {} }]);
+    sendNotification.mockRejectedValue(
+      Object.assign(new Error('Server error'), { statusCode: 500 }),
+    );
+    const { service, model } = createPushService([
+      { endpoint: 'https://push/a', keys: {} },
+    ]);
 
-    await expect(service.sendToUser(USER_ID, payload)).resolves.toEqual({ sent: 0, removed: 0 });
+    await expect(service.sendToUser(USER_ID, payload)).resolves.toEqual({
+      sent: 0,
+      removed: 0,
+    });
     expect(model.deleteMany).not.toHaveBeenCalled();
   });
 });
@@ -99,26 +121,51 @@ describe('NotificationsService Web Push', () => {
       ...notification,
     };
     const model = { create: jest.fn(() => Promise.resolve(doc)) };
-    const realtime = { emitToUser: jest.fn(), isUserOnline: jest.fn(() => Promise.resolve(online)) };
-    const push = { isEnabled: () => true, sendToUser: jest.fn(() => Promise.resolve({ sent: 1 })) };
-    const service = new NotificationsService(model as any, realtime as any, push as any);
+    const realtime = {
+      emitToUser: jest.fn(),
+      isUserOnline: jest.fn(() => Promise.resolve(online)),
+    };
+    const push = {
+      isEnabled: () => true,
+      sendToUser: jest.fn(() => Promise.resolve({ sent: 1 })),
+    };
+    const service = new NotificationsService(
+      model as any,
+      realtime as any,
+      push as any,
+    );
     return { service, push, realtime };
   }
   const flush = () => new Promise((resolve) => setImmediate(resolve));
 
   it('does not push while the user has the app open', async () => {
-    const { service, push, realtime } = setup(true, { type: NotificationType.JOIN_REQUEST });
-    await service.notify(USER_ID, { type: NotificationType.JOIN_REQUEST, title: 't', link: '/x' });
+    const { service, push, realtime } = setup(true, {
+      type: NotificationType.JOIN_REQUEST,
+    });
+    await service.notify(USER_ID, {
+      type: NotificationType.JOIN_REQUEST,
+      title: 't',
+      link: '/x',
+    });
     await flush();
     expect(realtime.emitToUser).toHaveBeenCalled();
     expect(push.sendToUser).not.toHaveBeenCalled();
   });
 
   it('pushes when the user is away, tagged by the alert id', async () => {
-    const { service, push } = setup(false, { type: NotificationType.JOIN_REQUEST });
-    await service.notify(USER_ID, { type: NotificationType.JOIN_REQUEST, title: 't', link: '/x' });
+    const { service, push } = setup(false, {
+      type: NotificationType.JOIN_REQUEST,
+    });
+    await service.notify(USER_ID, {
+      type: NotificationType.JOIN_REQUEST,
+      title: 't',
+      link: '/x',
+    });
     await flush();
-    expect(push.sendToUser).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ tag: 'n1', body: 'latest text' }));
+    expect(push.sendToUser).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({ tag: 'n1', body: 'latest text' }),
+    );
   });
 
   it('groups message pushes per conversation with a count', async () => {
@@ -127,11 +174,19 @@ describe('NotificationsService Web Push', () => {
       chatId: { toString: () => 'c1' },
       count: 3,
     });
-    await service.notify(USER_ID, { type: NotificationType.PRIVATE_MESSAGE, title: 't', link: '/x' });
+    await service.notify(USER_ID, {
+      type: NotificationType.PRIVATE_MESSAGE,
+      title: 't',
+      link: '/x',
+    });
     await flush();
     expect(push.sendToUser).toHaveBeenCalledWith(
       USER_ID,
-      expect.objectContaining({ tag: 'chat_c1', count: 3, body: '3 new messages · latest text' }),
+      expect.objectContaining({
+        tag: 'chat_c1',
+        count: 3,
+        body: '3 new messages · latest text',
+      }),
     );
   });
 
@@ -140,9 +195,16 @@ describe('NotificationsService Web Push', () => {
       type: NotificationType.CHAT_REQUEST,
       chatId: { toString: () => 'c1' },
     });
-    await service.notify(USER_ID, { type: NotificationType.CHAT_REQUEST, title: 't', link: '/x' });
+    await service.notify(USER_ID, {
+      type: NotificationType.CHAT_REQUEST,
+      title: 't',
+      link: '/x',
+    });
     await flush();
-    expect(push.sendToUser).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ tag: 'n1' }));
+    expect(push.sendToUser).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({ tag: 'n1' }),
+    );
   });
 
   it('group messages share the hangout tag', async () => {
@@ -150,8 +212,15 @@ describe('NotificationsService Web Push', () => {
       type: NotificationType.GROUP_MESSAGE,
       hangoutId: { toString: () => 'h1' },
     });
-    await service.notify(USER_ID, { type: NotificationType.GROUP_MESSAGE, title: 't', link: '/x' });
+    await service.notify(USER_ID, {
+      type: NotificationType.GROUP_MESSAGE,
+      title: 't',
+      link: '/x',
+    });
     await flush();
-    expect(push.sendToUser).toHaveBeenCalledWith(USER_ID, expect.objectContaining({ tag: 'hangout_h1' }));
+    expect(push.sendToUser).toHaveBeenCalledWith(
+      USER_ID,
+      expect.objectContaining({ tag: 'hangout_h1' }),
+    );
   });
 });
