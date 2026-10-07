@@ -19,6 +19,7 @@ export class HangoutsScheduler implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.hangouts.backfillLegacyStatuses();
+      await this.hangouts.backfillGeoPoints();
       // Catch up on anything missed while the server was down
       await this.hangouts.syncStatuses();
       await this.hangouts.sendDueReminders();

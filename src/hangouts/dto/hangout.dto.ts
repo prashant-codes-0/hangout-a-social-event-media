@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, Max, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, Max, ValidateNested, IsIn, IsArray, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HangoutLocationDto } from './hangout-location.dto';
@@ -91,6 +91,18 @@ export class CreateHangoutDto {
   capacity?: number;
 
   @ApiPropertyOptional({
+    description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
+    example: ['hiking', 'weekend'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(24, { each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({
     description: 'Whether the hangout is public or private',
     example: true,
     default: true,
@@ -172,6 +184,18 @@ export class UpdateHangoutDto {
   @IsNumber()
   @Min(1)
   capacity?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
+    example: ['coffee'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @MaxLength(24, { each: true })
+  tags?: string[];
 
   @ApiPropertyOptional({
     description: 'Whether the hangout is public or private',
