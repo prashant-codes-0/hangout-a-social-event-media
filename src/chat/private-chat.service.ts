@@ -13,6 +13,9 @@ import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
 import { escapeRegex } from '../hangouts/hangout-search';
+import { RealtimeService } from '../realtime/realtime.service';
+import { firstUrlIn, sanitizeAttachment } from './media.util';
+import { LinkPreviewService } from './link-preview.service';
 
 // Message ids are stored as strings (the schema's ObjectId type resolves to Mixed), but match
 // ObjectIds too so the query keeps working if that is ever fixed
@@ -31,6 +34,8 @@ export class PrivateChatService {
     @InjectModel(Hangout.name)
     private hangoutModel: Model<Hangout>,
     private notifications: NotificationsService,
+    private realtime: RealtimeService,
+    private linkPreviews: LinkPreviewService,
   ) {}
 
   private isMember(hangout: Hangout, userId: string): boolean {
@@ -287,7 +292,7 @@ export class PrivateChatService {
     return messages.reverse();
   }
 
-  async sendMessage(chatId: string, userId: string, content: string) {
+  async sendMessage(chatId: string, userId: string, content?: string, attachment?: unknown) {
     const chat = await this.getChatForParticipant(chatId, userId);
     if (chat.status !== PrivateChatStatus.ACCEPTED) {
       throw new ForbiddenException('This private chat has not been accepted');
@@ -298,7 +303,18 @@ export class PrivateChatService {
       throw new ForbiddenException('You are no longer part of this hangout');
     }
 
-    const message = new this.privateMessageModel({ chatId, senderId: userId, content });
+    const attachmentDoc = sanitizeAttachment(attachment);
+    if (!attachmentDoc && !(content ?? '').trim()) {
+      throw new BadRequestException('A message needs some text or an attachment');
+    }
+
+    const message = new this.privateMessageModel({
+      chatId,
+      senderId: userId,
+      content: content ?? '',
+      messageType: attachmentDoc ? attachmentDoc.kind : 'text',
+      attachment: attachmentDoc,
+    });
     await message.save();
     await message.populate('senderId', 'name email');
 
@@ -316,11 +332,34 @@ export class PrivateChatService {
       hangoutId: chat.hangoutId.toString(),
       chatId: String(chat._id),
       title: `New message from ${senderName}`,
-      body: content,
+      body: content || attachmentDoc?.name || 'Sent an attachment',
       link: this.chatLink(chat),
     });
 
+    // Fire and forget: scrape link metadata and re-push the message when it arrives
+    void this.attachLinkPreview(message, chat);
+
     return { chat, message };
+  }
+
+  // Scrapes og-tags for the first link in the message and re-emits it to both
+  // participants (clients merge by id). Best-effort, like the group chat's version.
+  private async attachLinkPreview(message: PrivateMessage, chat: PrivateChat) {
+    try {
+      const url = firstUrlIn(message.content);
+      if (!url) return;
+      const preview = await this.linkPreviews.fetchPreview(url);
+      if (!preview) return;
+      message.linkPreview = preview;
+      await message.save();
+      this.realtime.emitToUsers(
+        [chat.requester.toString(), chat.recipient.toString()],
+        'newPrivateMessage',
+        message.toJSON(),
+      );
+    } catch {
+      // Previews are optional; swallow fetch/store failures
+    }
   }
 
   // ---- Pinned messages (either participant; at most MAX_PINNED per chat) ----
