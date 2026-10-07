@@ -92,6 +92,21 @@ export class PrivateChatController {
     return this.privateChatService.getChatsForHangout(hangoutId, req.user.id);
   }
 
+  @Get(':chatId/messages/search')
+  @ApiOperation({ summary: 'Search a private chat (at least 2 characters), newest first' })
+  @ApiParam({ name: 'chatId', description: 'Private chat ID' })
+  @ApiQuery({ name: 'q', required: true })
+  searchMessages(@Param('chatId') chatId: string, @Query('q') q: string, @Request() req) {
+    return this.privateChatService.searchMessages(chatId, req.user.id, q);
+  }
+
+  @Post(':chatId/read')
+  @ApiOperation({ summary: "Mark everything in this private chat as read (clears its unread count)" })
+  @ApiParam({ name: 'chatId', description: 'Private chat ID' })
+  markRead(@Param('chatId') chatId: string, @Request() req) {
+    return this.privateChatService.markRead(chatId, req.user.id);
+  }
+
   @Get(':chatId/messages')
   @ApiOperation({ summary: 'Get messages of an accepted private chat' })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })

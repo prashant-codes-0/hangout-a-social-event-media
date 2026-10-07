@@ -24,12 +24,24 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { SendMessageDto, EditMessageDto, MessageResponseDto, ReactDto, MarkReadDto } from './dto/chat.dto';
+import { InboxService } from './inbox.service';
+import {
+  SendMessageDto,
+  EditMessageDto,
+  MessageResponseDto,
+  ReactDto,
+  MarkReadDto,
+  CreatePollDto,
+  VotePollDto,
+} from './dto/chat.dto';
 
 @ApiTags('Chat')
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) { }
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly inboxService: InboxService,
+  ) { }
 
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post('message')
@@ -145,6 +157,69 @@ export class ChatController {
     return this.chatService.toggleReaction(messageId, req.user.id, dto.emoji);
   }
 
+  // ---- Polls ----
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get('hangout/:hangoutId/polls')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'List the polls posted in a hangout (newest first)' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiResponse({ status: 200, description: 'Poll messages' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'You must be an attendee, creator, or admin to view polls' })
+  getPolls(@Param('hangoutId') hangoutId: string) {
+    return this.chatService.getPolls(hangoutId);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Post('hangout/:hangoutId/polls')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Post a poll in the hangout chat (2-6 options; time/place polls can update the hangout)' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiBody({ type: CreatePollDto })
+  @ApiResponse({ status: 201, description: 'The poll message' })
+  @ApiResponse({ status: 403, description: 'You must be an attendee, creator, or admin to start a poll' })
+  createPoll(@Param('hangoutId') hangoutId: string, @Body() dto: CreatePollDto, @Request() req) {
+    return this.chatService.createPoll(hangoutId, req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('polls/:messageId/vote')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Cast your single vote in a poll (change your mind any time while it is open)' })
+  @ApiParam({ name: 'messageId', description: 'Poll message ID' })
+  @ApiBody({ type: VotePollDto })
+  @ApiResponse({ status: 201, description: '{ hangoutId, messageId, poll }' })
+  @ApiResponse({ status: 400, description: 'Poll closed, voting time is up, or unknown option' })
+  @ApiResponse({ status: 403, description: 'Not part of this hangout' })
+  votePoll(@Param('messageId') messageId: string, @Body() dto: VotePollDto, @Request() req) {
+    return this.chatService.votePoll(messageId, req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('polls/:messageId/close')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Close voting early (poll creator, hangout organizer, or admin)' })
+  @ApiParam({ name: 'messageId', description: 'Poll message ID' })
+  @ApiResponse({ status: 201, description: '{ hangoutId, messageId, poll }' })
+  closePoll(@Param('messageId') messageId: string, @Request() req) {
+    return this.chatService.closePoll(messageId, req.user.id, req.user.role === UserRole.ADMIN);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('polls/:messageId/apply')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Apply the winning option of a time/place poll to the hangout details (hangout organizer or admin)',
+  })
+  @ApiParam({ name: 'messageId', description: 'Poll message ID' })
+  @ApiResponse({ status: 201, description: '{ hangoutId, messageId, poll, applied: { kind, value, label } }' })
+  @ApiResponse({ status: 400, description: 'General poll, nobody voted, or winning time is in the past' })
+  @ApiResponse({ status: 403, description: 'Only the hangout organizer can apply a poll result' })
+  applyPoll(@Param('messageId') messageId: string, @Request() req) {
+    return this.chatService.applyPoll(messageId, req.user.id, req.user.role === UserRole.ADMIN);
+  }
+
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post('hangout/:hangoutId/read')
   @ApiBearerAuth('JWT-auth')
@@ -168,6 +243,33 @@ export class ChatController {
   async deleteMessage(@Param('messageId') messageId: string, @Request() req) {
     const isAdmin = req.user.role === UserRole.ADMIN;
     return this.chatService.deleteMessage(messageId, req.user.id, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('inbox')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'All your chats (group + private) with the last message and unread count' })
+  inbox(@Request() req) {
+    return this.inboxService.inbox(req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get('hangout/:hangoutId/search')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Search this hangout chat (at least 2 characters), newest first' })
+  @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
+  @ApiQuery({ name: 'q', required: true })
+  searchMessages(@Param('hangoutId') hangoutId: string, @Query('q') q: string) {
+    return this.chatService.searchMessages(hangoutId, q);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('message/:messageId/history')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Every version of an edited message, oldest first (hangout members)' })
+  @ApiParam({ name: 'messageId', description: 'Message ID' })
+  editHistory(@Param('messageId') messageId: string, @Request() req) {
+    return this.chatService.getEditHistory(messageId, req.user.id, req.user.role === UserRole.ADMIN);
   }
 
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)

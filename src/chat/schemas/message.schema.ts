@@ -33,6 +33,64 @@ export class ReadReceipt {
 
 export const ReadReceiptSchema = SchemaFactory.createForClass(ReadReceipt);
 
+// An earlier version of an edited message, and when that version was written
+@Schema({ _id: false })
+export class MessageVersion {
+  @Prop({ required: true })
+  content: string;
+
+  @Prop({ type: Date, required: true })
+  writtenAt: Date;
+}
+
+export const MessageVersionSchema = SchemaFactory.createForClass(MessageVersion);
+
+// One choice in a poll. `value` holds the machine-readable pick for polls that
+// can update the hangout: an ISO date/time for "which time?" or the place text.
+@Schema({ _id: true })
+export class PollOption {
+  _id?: Types.ObjectId;
+
+  @Prop({ required: true })
+  text: string;
+
+  @Prop()
+  value?: string;
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  votes: Types.ObjectId[];
+}
+
+export const PollOptionSchema = SchemaFactory.createForClass(PollOption);
+
+// A poll posted in the group chat. The organizer can turn the winning option of
+// a `time` or `place` poll into the hangout's details.
+@Schema({ _id: false })
+export class Poll {
+  @Prop({ required: true })
+  question: string;
+
+  @Prop({ type: [PollOptionSchema], default: [] })
+  options: PollOption[];
+
+  // What a winning option is allowed to change on the hangout
+  @Prop({ enum: ['general', 'time', 'place'], default: 'general' })
+  kind: 'general' | 'time' | 'place';
+
+  @Prop({ enum: ['open', 'closed', 'applied'], default: 'open' })
+  status: 'open' | 'closed' | 'applied';
+
+  // Optional deadline; votes are refused after this moment
+  @Prop({ type: Date })
+  closesAt?: Date;
+
+  // Winning option once the organizer applied it to the hangout
+  @Prop()
+  appliedValue?: string;
+}
+
+export const PollSchema = SchemaFactory.createForClass(Poll);
+
 // flattenMaps: send `reactions` to clients as a plain { emoji: userIds[] } object
 @Schema({ timestamps: true, toJSON: { flattenMaps: true } })
 export class Message extends Document {
@@ -45,7 +103,7 @@ export class Message extends Document {
   @Prop({ required: true })
   content: string;
 
-  @Prop({ default: 'text', enum: ['text', 'image', 'system'] })
+  @Prop({ default: 'text', enum: ['text', 'image', 'system', 'poll'] })
   messageType: string;
 
   @Prop({ default: false })
@@ -74,6 +132,21 @@ export class Message extends Document {
   // Everyone except the sender who has seen it
   @Prop({ type: [ReadReceiptSchema], default: [] })
   readBy: ReadReceipt[];
+
+  // Members tagged with @Name (validated: members of the hangout whose @Name is in the text)
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  mentions: Types.ObjectId[];
+
+  // Earlier versions, oldest first (last 20). Loaded only on request, so lists stay small.
+  @Prop({ type: [MessageVersionSchema], default: [], select: false })
+  editHistory: MessageVersion[];
+
+  // Set when messageType is 'poll'; `content` mirrors the question so search still finds it
+  @Prop({ type: PollSchema })
+  poll?: Poll;
+
+  @Prop({ default: 0 })
+  editCount: number;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

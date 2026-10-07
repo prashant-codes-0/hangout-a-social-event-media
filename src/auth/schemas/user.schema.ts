@@ -21,6 +21,24 @@ export class UserSettings {
 
 export const UserSettingsSchema = SchemaFactory.createForClass(UserSettings);
 
+// A badge earned through hangouts; name/icon are snapshotted so the rules can evolve freely
+@Schema({ _id: false })
+export class UserBadge {
+  @Prop({ required: true })
+  key: string;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  icon: string;
+
+  @Prop({ default: () => new Date() })
+  earnedAt: Date;
+}
+
+export const UserBadgeSchema = SchemaFactory.createForClass(UserBadge);
+
 @Schema({ timestamps: true })
 export class User extends Document {
   @Prop({ required: true })
@@ -68,6 +86,17 @@ export class User extends Document {
 
   @Prop({ type: UserSettingsSchema, default: () => ({}) })
   settings: UserSettings;
+
+  // Community reputation: average of post-hangout ratings (0 until the first rating)
+  @Prop({ default: 0 })
+  ratingAvg: number;
+
+  @Prop({ default: 0 })
+  ratingCount: number;
+
+  // Badges earned (rules live in RatingsService.recomputeReputation)
+  @Prop({ type: [UserBadgeSchema], default: [] })
+  badges: UserBadge[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

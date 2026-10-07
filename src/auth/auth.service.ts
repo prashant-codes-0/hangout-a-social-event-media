@@ -125,6 +125,10 @@ export class AuthService {
       email: user.email,
       role: user.role,
       verified: user.verified,
+      // Community reputation (post-hangout ratings + badges)
+      ratingAvg: user.ratingAvg ?? 0,
+      ratingCount: user.ratingCount ?? 0,
+      badges: user.badges ?? [],
     };
   }
 

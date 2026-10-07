@@ -184,13 +184,16 @@ export class SocialService {
   async profile(targetId: string, viewerId?: string) {
     const user = await this.userModel
       .findById(oid(targetId))
-      .select('name role verified createdAt')
+      .select('name role verified createdAt ratingAvg ratingCount badges')
       .lean<{
         _id: Types.ObjectId;
         name: string;
         role: string;
         verified: boolean;
         createdAt?: Date;
+        ratingAvg?: number;
+        ratingCount?: number;
+        badges?: { key: string; name: string; icon: string; earnedAt?: Date }[];
       }>();
     if (!user) throw new NotFoundException('User not found');
 
@@ -226,6 +229,9 @@ export class SocialService {
       role: user.role,
       verified: user.verified,
       memberSince: user.createdAt,
+      ratingAvg: user.ratingAvg ?? 0,
+      ratingCount: user.ratingCount ?? 0,
+      badges: user.badges ?? [],
       isMe: viewerId === targetId,
       isFollowing: rel?.isFollowing ?? false,
       followsYou: rel?.followsYou ?? false,

@@ -22,10 +22,15 @@ import {
 } from '@nestjs/swagger';
 import { HangoutsService } from './hangouts.service';
 import type { HangoutFeedFilters } from './hangouts.service';
+import { CheckInService } from './checkin.service';
+import { RatingsService } from './ratings.service';
 import { CreateHangoutDto, UpdateHangoutDto, UpdateHangoutStatusDto } from './dto/hangout.dto';
+import { CheckInCodeDto, CheckInDto, LiveLocationDto } from './dto/checkin.dto';
+import { RateHangoutDto } from './dto/rating.dto';
 import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
 import { HangoutStatus } from './schemas/hangout.schema';
+import { HangoutAccessGuard } from '../chat/guards/hangout-access.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import { VerifiedUserGuard } from '../common/guards/verified-user.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -37,7 +42,11 @@ import { UserRole } from '../auth/schemas/user.schema';
 @ApiTags('Hangouts')
 @Controller('hangouts')
 export class HangoutsController {
-  constructor(private readonly hangoutsService: HangoutsService) { }
+  constructor(
+    private readonly hangoutsService: HangoutsService,
+    private readonly checkInService: CheckInService,
+    private readonly ratingsService: RatingsService,
+  ) { }
 
   @UseGuards(AuthGuard('jwt'), VerifiedUserGuard)
   @Post()
@@ -622,4 +631,93 @@ export class HangoutsController {
     return this.hangoutsService.leaveOrCancelHangout(id, req.user.id);
   }
 
+  // ---- Venue check-in & live location (day-of) ----
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post(':id/checkin-code')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get (or rotate) the check-in code attendees scan at the venue — organizer or admin',
+  })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiBody({ type: CheckInCodeDto, required: false })
+  @ApiResponse({ status: 201, description: '{ code, expiresAt }' })
+  @ApiResponse({ status: 403, description: 'Only the hangout organizer can show the check-in code' })
+  checkInCode(@Param('id') id: string, @Body() dto: CheckInCodeDto, @Request() req) {
+    const isAdmin = req.user.role === UserRole.ADMIN;
+    return this.checkInService.ensureCode(id, req.user.id, dto?.rotate === true, isAdmin);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Post(':id/checkin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Check in at the venue with the code, or by GPS proximity (opens 2h before the start)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiBody({ type: CheckInDto })
+  @ApiResponse({ status: 201, description: '{ checkIn, checkedInCount }' })
+  @ApiResponse({ status: 400, description: 'Wrong code, too far from the venue, or outside the check-in window' })
+  @ApiResponse({ status: 403, description: 'You must be an attendee, creator, or admin to check in' })
+  checkIn(@Param('id') id: string, @Body() dto: CheckInDto, @Request() req) {
+    return this.checkInService.checkIn(id, req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get(':id/checkins')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Who has checked in so far (members only)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  listCheckIns(@Param('id') id: string) {
+    return this.checkInService.list(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Post(':id/live-location')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Share your live position with the group while the hangout is on' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiBody({ type: LiveLocationDto })
+  @ApiResponse({ status: 201, description: 'Current shared points: [{ userId, name, lat, lng, updatedAt }]' })
+  shareLiveLocation(@Param('id') id: string, @Body() dto: LiveLocationDto, @Request() req) {
+    return this.checkInService.share(id, req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Delete(':id/live-location')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Stop sharing your live position' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  stopLiveLocation(@Param('id') id: string, @Request() req) {
+    return this.checkInService.stop(id, req.user.id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get(':id/live-location')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Live positions currently shared for this hangout' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  listLiveLocation(@Param('id') id: string) {
+    return this.checkInService.listLive(id);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Post(':id/ratings')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Rate the people you met, once the hangout has finished (1-5 each)' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  @ApiBody({ type: RateHangoutDto })
+  @ApiResponse({ status: 201, description: '{ saved: number }' })
+  @ApiResponse({ status: 400, description: 'Hangout not finished yet, or an invalid rating list' })
+  @ApiResponse({ status: 403, description: 'Only people who were part of this hangout can rate it' })
+  rateHangout(@Param('id') id: string, @Body() dto: RateHangoutDto, @Request() req) {
+    return this.ratingsService.rate(id, req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
+  @Get(':id/ratings/mine')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'The scores I already gave for this hangout' })
+  @ApiParam({ name: 'id', description: 'Hangout ID' })
+  myRatings(@Param('id') id: string, @Request() req) {
+    return this.ratingsService.mine(id, req.user.id);
+  }
 }
