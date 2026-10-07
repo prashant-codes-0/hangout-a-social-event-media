@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { RealtimeService } from '../realtime/realtime.service';
+import { PushPayload, PushService } from './push.service';
 import { Notification, NotificationType } from './schemas/notification.schema';
 
 export interface NotifyInput {
@@ -28,6 +29,7 @@ export class NotificationsService {
     @InjectModel(Notification.name)
     private notificationModel: Model<Notification>,
     private realtime: RealtimeService,
+    private pushService: PushService,
   ) {}
 
   async notify(recipientId: string, input: NotifyInput) {
@@ -162,6 +164,20 @@ export class NotificationsService {
       'notification',
       notification.toJSON(),
     );
+    void this.pushIfAway(notification);
+  }
+
+  // With the app open, the socket event above shows the alert (toast, or a desktop alert while
+  // the tab is hidden). With it closed everywhere, send a Web Push instead.
+  private async pushIfAway(notification: Notification) {
+    try {
+      const userId = notification.userId.toString();
+      if (!this.pushService.isEnabled()) return;
+      if (await this.realtime.isUserOnline(userId)) return;
+      await this.pushService.sendToUser(userId, pushPayload(notification));
+    } catch (error) {
+      this.logger.error(`Web Push failed: ${(error as Error).message}`);
+    }
   }
 
   private snippet(text?: string) {
@@ -170,4 +186,38 @@ export class NotificationsService {
       ? clean.slice(0, SNIPPET_LENGTH - 1) + '…'
       : clean;
   }
+}
+
+// Grouped message alerts share one tag per conversation, so a newer push replaces the older one
+// on the device instead of stacking up
+function pushPayload(notification: Notification): PushPayload {
+  const id = notification._id as { toString(): string };
+  let tag = id.toString();
+  if (
+    notification.type === NotificationType.PRIVATE_MESSAGE &&
+    notification.chatId
+  ) {
+    tag = `chat_${notification.chatId.toString()}`;
+  } else if (
+    notification.type === NotificationType.GROUP_MESSAGE &&
+    notification.hangoutId
+  ) {
+    tag = `hangout_${notification.hangoutId.toString()}`;
+  }
+  const count = notification.count ?? 1;
+  const body =
+    count > 1
+      ? `${count} new messages · ${notification.body}`
+      : notification.body;
+
+  return {
+    id: id.toString(),
+    type: notification.type,
+    title: notification.title,
+    body,
+    link: notification.link,
+    tag,
+    count,
+    callType: notification.callType,
+  };
 }
