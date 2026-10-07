@@ -1,9 +1,67 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, MinLength, ValidateNested, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, MinLength, ValidateNested, IsInt, Min, Max, IsUrl, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 const MAX_MENTIONS = 20;
 const MAX_POLL_OPTIONS = 6;
 import { ApiProperty } from '@nestjs/swagger';
+import { MAX_ATTACHMENT_BYTES } from '../media.util';
+
+// Result of POST /upload; sending it with a message stores the file on the message itself
+export class AttachmentDto {
+  @ApiProperty({
+    description: 'Public URL of the stored file (Cloudinary)',
+    example: 'https://res.cloudinary.com/demo/image/upload/v1/hangout/chat/abc/photo.png',
+  })
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  @MaxLength(500)
+  url: string;
+
+  @ApiProperty({
+    description: 'Cloudinary public id, so the file can be deleted with its message',
+    example: 'hangout/chat/507f1f77bcf86cd799439011/xyz',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  publicId: string;
+
+  @ApiProperty({ description: 'Original file name', example: 'beach-photo.png' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name: string;
+
+  @ApiProperty({ description: 'MIME type of the file', example: 'image/png' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  mimeType: string;
+
+  @ApiProperty({ description: 'File size in bytes (max 2 MB)', example: 102400 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_ATTACHMENT_BYTES)
+  size: number;
+
+  @ApiProperty({ description: 'Voice note length in milliseconds', example: 4200, required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(60 * 60 * 1000)
+  durationMs?: number;
+
+  @ApiProperty({
+    description: 'How the client renders it: image, voice note, or other file',
+    enum: ['image', 'file', 'voice'],
+    example: 'image',
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['image', 'file', 'voice'])
+  kind?: 'image' | 'file' | 'voice';
+}
 
 export class SendMessageDto {
   @ApiProperty({
@@ -15,22 +73,34 @@ export class SendMessageDto {
   hangoutId: string;
 
   @ApiProperty({
-    description: 'Message content',
+    description: 'Message content (text along with, or instead of, an attachment)',
     example: 'Hey everyone! Looking forward to this hangout!',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  content: string;
+  @MaxLength(4000)
+  content?: string;
 
   @ApiProperty({
-    description: 'Type of message',
-    enum: ['text', 'image', 'system'],
+    description: 'Type of message (the attachment kind overrides it when one is sent)',
+    enum: ['text', 'image', 'system', 'poll', 'file', 'voice'],
     example: 'text',
     required: false,
   })
   @IsOptional()
-  @IsEnum(['text', 'image', 'system'])
+  @IsEnum(['text', 'image', 'system', 'poll', 'file', 'voice'])
   messageType?: string;
+
+  @ApiProperty({
+    description: 'File/image/voice note previously uploaded via POST /upload (max 2 MB)',
+    type: AttachmentDto,
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AttachmentDto)
+  attachment?: AttachmentDto;
 
   @ApiProperty({
     description: 'Id of the message this one replies to (same hangout)',

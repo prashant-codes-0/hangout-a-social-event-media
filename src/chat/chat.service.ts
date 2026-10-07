@@ -21,6 +21,9 @@ import { NotificationType } from '../notifications/schemas/notification.schema';
 import { RealtimeService } from '../realtime/realtime.service';
 import { escapeRegex } from '../hangouts/hangout-search';
 import { deriveHangoutStatus, formatHangoutWhen } from '../hangouts/hangout-status';
+import { firstUrlIn, sanitizeAttachment } from './media.util';
+import { LinkPreviewService } from './link-preview.service';
+import { UploadService } from './upload.service';
 
 // Earlier versions kept per edited message
 const MAX_EDIT_HISTORY = 20;
@@ -38,20 +41,29 @@ export class ChatService {
     private userModel: Model<User>,
     private notifications: NotificationsService,
     private realtime: RealtimeService,
+    private linkPreviews: LinkPreviewService,
+    private uploads: UploadService,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, userId: string) {
     const { hangoutId, content, messageType = 'text', replyToId, mentions } = sendMessageDto;
+
+    // The socket path skips the ValidationPipe, so the attachment is re-checked here
+    const attachment = sanitizeAttachment(sendMessageDto.attachment);
+    if (!attachment && !(content ?? '').trim()) {
+      throw new BadRequestException('A message needs some text or an attachment');
+    }
 
     // Access validation is now handled by HangoutAccessGuard at the controller level
     // Create message
     const message = new this.messageModel({
       hangoutId,
       userId,
-      content,
-      messageType,
+      content: content ?? '',
+      messageType: attachment ? attachment.kind : messageType,
+      attachment,
       replyTo: replyToId ? await this.replyPreview(hangoutId, replyToId) : undefined,
-      mentions: await this.resolveMentions(hangoutId, content, mentions, userId),
+      mentions: await this.resolveMentions(hangoutId, content ?? '', mentions, userId),
     });
 
     await message.save();
@@ -59,7 +71,26 @@ export class ChatService {
     // Populate user info for response
     await message.populate('userId', 'name email');
 
+    // Fire and forget: scrape link metadata and push it when it arrives
+    void this.attachLinkPreview(message);
+
     return message;
+  }
+
+  // Scrapes og-tags for the first link in the message and pushes the update to the
+  // room. Best-effort: a slow or unreadable page never affects the message itself.
+  private async attachLinkPreview(message: Message) {
+    try {
+      const url = firstUrlIn(message.content);
+      if (!url) return;
+      const preview = await this.linkPreviews.fetchPreview(url);
+      if (!preview) return;
+      message.linkPreview = preview;
+      await message.save();
+      this.realtime.emitToRoom(`hangout_${message.hangoutId.toString()}`, 'messageEdited', message.toJSON());
+    } catch {
+      // Previews are optional; swallow fetch/store failures
+    }
   }
 
   // Keep only real mentions: members of this hangout (not the author) whose "@Name" is in the text.
@@ -184,19 +215,24 @@ export class ChatService {
     );
 
     // Atomic, so two quick edits can't lose a version
+    // A link that's gone means its preview goes too; a new/changed link is re-scraped below
+    const newPreviewUrl = firstUrlIn(content);
+    const update: Record<string, any> = {
+      $set: { content, isEdited: true, editedAt: new Date(), mentions },
+      $inc: { editCount: 1 },
+      $push: {
+        editHistory: {
+          $each: [{ content: message.content, writtenAt: message.editedAt ?? (message as any).createdAt }],
+          $slice: -MAX_EDIT_HISTORY,
+        },
+      },
+    };
+    if (!newPreviewUrl) update.$unset = { linkPreview: '' };
+
     const updated = await this.messageModel
       .findOneAndUpdate(
         { _id: message._id },
-        {
-          $set: { content, isEdited: true, editedAt: new Date(), mentions },
-          $inc: { editCount: 1 },
-          $push: {
-            editHistory: {
-              $each: [{ content: message.content, writtenAt: message.editedAt ?? (message as any).createdAt }],
-              $slice: -MAX_EDIT_HISTORY,
-            },
-          },
-        },
+        update,
         { new: true },
       )
       .populate('userId', 'name email')
@@ -205,6 +241,10 @@ export class ChatService {
 
     // Everyone viewing the chat sees the new text right away
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messageEdited', updated.toJSON());
+
+    if (newPreviewUrl && updated.linkPreview?.url !== newPreviewUrl) {
+      void this.attachLinkPreview(updated);
+    }
 
     const added = mentions.map(String).filter(id => !before.has(id));
     if (added.length) void this.notifyMentions(updated, added);
@@ -259,6 +299,11 @@ export class ChatService {
     }
 
     await this.messageModel.findByIdAndDelete(messageId);
+
+    // The stored file goes with its message (best-effort)
+    if (message.attachment?.publicId) {
+      void this.uploads.destroy(message.attachment.publicId, message.attachment.mimeType);
+    }
 
     // Drop it from everyone's pinned bar
     if (message.pinned) {

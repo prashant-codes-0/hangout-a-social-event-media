@@ -14,6 +14,9 @@ import { PrivateChatService } from './private-chat.service';
 import { PrivateChatController } from './private-chat.controller';
 import { IceServersService } from './ice-servers.service';
 import { InboxService } from './inbox.service';
+import { UploadService } from './upload.service';
+import { UploadController } from './upload.controller';
+import { LinkPreviewService } from './link-preview.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -35,8 +38,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
     NotificationsModule,
   ],
-  providers: [ChatService, ChatGateway, PrivateChatService, IceServersService, InboxService],
-  controllers: [ChatController, PrivateChatController],
-  exports: [ChatService],
+  providers: [ChatService, ChatGateway, PrivateChatService, IceServersService, InboxService, UploadService, LinkPreviewService],
+  controllers: [ChatController, PrivateChatController, UploadController],
+  exports: [ChatService, UploadService],
 })
 export class ChatModule {}

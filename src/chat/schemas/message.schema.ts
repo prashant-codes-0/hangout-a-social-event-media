@@ -21,6 +21,58 @@ export class ReplyPreview {
 
 export const ReplyPreviewSchema = SchemaFactory.createForClass(ReplyPreview);
 
+// A file, image, or voice note attached to a message (stored on Cloudinary).
+// `publicId` lets the asset be removed along with its message.
+@Schema({ _id: false })
+export class MessageAttachment {
+  @Prop({ required: true })
+  url: string;
+
+  @Prop({ required: true })
+  publicId: string;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  mimeType: string;
+
+  // Size in bytes (max 2 MB)
+  @Prop({ required: true })
+  size: number;
+
+  @Prop({ required: true, enum: ['image', 'file', 'voice'] })
+  kind: 'image' | 'file' | 'voice';
+
+  // Voice notes: recording length in milliseconds
+  @Prop()
+  durationMs?: number;
+}
+
+export const MessageAttachmentSchema = SchemaFactory.createForClass(MessageAttachment);
+
+// Link metadata scraped from the first URL in a message; filled in right after
+// sending and pushed to clients via the usual 'messageEdited' event.
+@Schema({ _id: false })
+export class LinkPreview {
+  @Prop({ required: true })
+  url: string;
+
+  @Prop()
+  title?: string;
+
+  @Prop()
+  description?: string;
+
+  @Prop()
+  image?: string;
+
+  @Prop()
+  siteName?: string;
+}
+
+export const LinkPreviewSchema = SchemaFactory.createForClass(LinkPreview);
+
 // Read receipt: who has seen the message and when
 @Schema({ _id: false })
 export class ReadReceipt {
@@ -100,11 +152,20 @@ export class Message extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true })
+  // Text usually, but image/file/voice messages carry no text (empty string)
+  @Prop({ type: String, default: '' })
   content: string;
 
-  @Prop({ default: 'text', enum: ['text', 'image', 'system', 'poll'] })
+  @Prop({ default: 'text', enum: ['text', 'image', 'system', 'poll', 'file', 'voice'] })
   messageType: string;
+
+  // Image, file, or voice note stored on Cloudinary (messageType mirrors its kind)
+  @Prop({ type: MessageAttachmentSchema })
+  attachment?: MessageAttachment;
+
+  // og-tags of the first link in `content`, added asynchronously after send
+  @Prop({ type: LinkPreviewSchema })
+  linkPreview?: LinkPreview;
 
   @Prop({ default: false })
   isEdited: boolean;

@@ -1,5 +1,7 @@
-import { IsString, IsNotEmpty, IsBoolean, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { AttachmentDto } from './chat.dto';
 
 export class RequestPrivateChatDto {
   @ApiProperty({ description: 'Hangout both users belong to', example: '507f1f77bcf86cd799439011' })
@@ -20,9 +22,23 @@ export class RespondPrivateChatDto {
 }
 
 export class SendPrivateMessageDto {
-  @ApiProperty({ description: 'Message content', example: 'Hey, want to grab coffee before the hangout?' })
+  @ApiProperty({
+    description: 'Message content (text along with, or instead of, an attachment)',
+    example: 'Hey, want to grab coffee before the hangout?',
+    required: false,
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(2000)
-  content: string;
+  content?: string;
+
+  @ApiProperty({
+    description: 'File/image/voice note previously uploaded via POST /upload (max 2 MB)',
+    type: AttachmentDto,
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AttachmentDto)
+  attachment?: AttachmentDto;
 }

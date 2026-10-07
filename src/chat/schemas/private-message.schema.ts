@@ -1,5 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  LinkPreview,
+  LinkPreviewSchema,
+  MessageAttachment,
+  MessageAttachmentSchema,
+} from './message.schema';
 
 export type CallLogStatus = 'completed' | 'missed' | 'declined' | 'busy';
 
@@ -27,12 +33,21 @@ export class PrivateMessage extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   senderId: Types.ObjectId;
 
-  @Prop({ required: true })
+  // Text usually, but image/file/voice messages carry no text (empty string)
+  @Prop({ type: String, default: '' })
   content: string;
 
-  // 'call' messages are written by the server when a call ends
-  @Prop({ default: 'text', enum: ['text', 'call'] })
-  messageType: 'text' | 'call';
+  // 'call' messages are written by the server when a call ends;
+  // image/file/voice messages carry an attachment of the matching kind
+  @Prop({ default: 'text', enum: ['text', 'call', 'image', 'file', 'voice'] })
+  messageType: 'text' | 'call' | 'image' | 'file' | 'voice';
+
+  @Prop({ type: MessageAttachmentSchema })
+  attachment?: MessageAttachment;
+
+  // og-tags of the first link in `content`, added asynchronously after send
+  @Prop({ type: LinkPreviewSchema })
+  linkPreview?: LinkPreview;
 
   @Prop({ type: CallLogSchema })
   call?: CallLog;

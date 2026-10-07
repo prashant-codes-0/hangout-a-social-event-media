@@ -162,7 +162,7 @@ export class PrivateChatController {
   @ApiResponse({ status: 201, description: 'Message sent' })
   @ApiResponse({ status: 403, description: 'Not a participant or chat not accepted' })
   async sendMessage(@Param('chatId') chatId: string, @Body() dto: SendPrivateMessageDto, @Request() req) {
-    const { chat, message } = await this.privateChatService.sendMessage(chatId, req.user.id, dto.content);
+    const { chat, message } = await this.privateChatService.sendMessage(chatId, req.user.id, dto.content, dto.attachment);
     this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'newPrivateMessage', message);
     return message;
   }
