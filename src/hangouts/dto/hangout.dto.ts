@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, Min, Max, ValidateNested, IsIn, IsArray, ArrayMaxSize, MaxLength } from 'class-validator';
+import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, IsInt, Min, Max, ValidateNested, IsIn, IsArray, ArrayMaxSize, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HangoutLocationDto } from './hangout-location.dto';
@@ -89,6 +89,18 @@ export class CreateHangoutDto {
   @IsNumber()
   @Min(1)
   capacity?: number;
+
+  @ApiPropertyOptional({
+    description: 'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
+    example: 500,
+    minimum: 0,
+    default: 0,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  price?: number;
 
   @ApiPropertyOptional({
     description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
@@ -193,6 +205,17 @@ export class UpdateHangoutDto {
   @IsNumber()
   @Min(1)
   capacity?: number;
+
+  @ApiPropertyOptional({
+    description: 'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
+    example: 500,
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  price?: number;
 
   @ApiPropertyOptional({
     description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',

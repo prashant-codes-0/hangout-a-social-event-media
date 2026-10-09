@@ -36,6 +36,7 @@ import { ActivityVerb } from '../social/schemas/activity.schema';
 import { SocialService } from '../social/social.service';
 import { HangoutLocation } from './schemas/hangout-location.schema';
 import { Hangout, HangoutStatus } from './schemas/hangout.schema';
+import { TicketsService } from './tickets.service';
 
 // A hangout as returned by the public feed (plain object plus per-viewer extras)
 type FeedHangout = Record<string, unknown> & {
@@ -81,6 +82,7 @@ export class HangoutsService {
     private notifications: NotificationsService,
     private activity: ActivityService,
     private social: SocialService,
+    private tickets: TicketsService,
   ) {}
 
   // ---- Join request alerts (fire and forget; NotificationsService never throws) ----
@@ -537,6 +539,7 @@ export class HangoutsService {
 
     await this.hangoutModel.findByIdAndDelete(id);
     await this.joinRequestModel.deleteMany({ hangoutId: id });
+    await this.tickets.deleteForHangout(id);
     void this.activity.removeForHangout(id);
     return { message: 'Hangout deleted successfully' };
   }
@@ -633,6 +636,7 @@ export class HangoutsService {
       if (!hangout.attendees.includes(joinRequest.userId)) {
         hangout.attendees.push(joinRequest.userId);
         await hangout.save();
+        await this.tickets.issue(hangout._id as Types.ObjectId, joinRequest.userId);
         void this.activity.record(
           String(joinRequest.userId),
           ActivityVerb.GOING,
@@ -715,6 +719,7 @@ export class HangoutsService {
 
     await hangout.save();
     if (action === 'approve') {
+      await this.tickets.issue(hangout._id as Types.ObjectId, requestedUserId);
       void this.activity.record(requestedUserId, ActivityVerb.GOING, {
         hangoutId: String(hangout._id),
       });
@@ -858,6 +863,7 @@ export class HangoutsService {
     });
 
     await hangout.save();
+    await this.tickets.cancel(hangoutId, userId);
     void this.activity.remove(userId, ActivityVerb.GOING, { hangoutId });
 
     return {
@@ -951,6 +957,9 @@ export class HangoutsService {
     }
 
     await hangout.save();
+    if (isAttendee) {
+      await this.tickets.cancel(hangoutId, userId);
+    }
 
     return {
       message,
@@ -1342,6 +1351,7 @@ export class HangoutsService {
       time: nextTime,
       durationMinutes: parent.durationMinutes,
       capacity: parent.capacity,
+      price: parent.price,
       isPublic: parent.isPublic,
       sponsored: parent.sponsored,
       sponsorId: parent.sponsorId,
@@ -1351,6 +1361,7 @@ export class HangoutsService {
       status: HangoutStatus.UPCOMING,
       remindersSent: [],
     });
+    await this.tickets.issueForAttendees(created);
 
     for (const attendee of parent.attendees) {
       this.notifications.notify(attendee.toString(), {
@@ -1435,6 +1446,9 @@ export class HangoutsService {
         },
       );
 
+      // Every ticket is void; paid ones become refunds the organizer owes
+      await this.tickets.cancelAllForHangout(hangout._id as Types.ObjectId);
+
       // Clear the live doc so the alert carries the reason
       hangout.status = HangoutStatus.CANCELLED;
       hangout.cancelReason = cancelReason || undefined;
@@ -1479,6 +1493,8 @@ export class HangoutsService {
         $unset: { cancelledAt: 1, cancelReason: 1, completedAt: 1, ratingsNudged: 1 },
       },
     );
+    // Attendees are still listed, so their tickets come back with them
+    await this.tickets.issueForAttendees(hangout);
 
     return this.findOne(hangoutId);
   }

@@ -1,8 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-// One attendee's venue check-in for a hangout, taken either with the code the
-// organizer shows (QR/signboard) or by GPS proximity to the venue.
+// One attendee's venue check-in for a hangout, taken with the code the
+// organizer shows (QR/signboard), by GPS proximity to the venue, or by the
+// organizer scanning the attendee's ticket.
 @Schema({ timestamps: true })
 export class HangoutCheckIn extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Hangout', required: true })
@@ -11,8 +12,8 @@ export class HangoutCheckIn extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ enum: ['code', 'geo'], required: true })
-  method: 'code' | 'geo';
+  @Prop({ enum: ['code', 'geo', 'ticket'], required: true })
+  method: 'code' | 'geo' | 'ticket';
 
   // Metres from the venue at the moment of a proximity check-in
   @Prop()

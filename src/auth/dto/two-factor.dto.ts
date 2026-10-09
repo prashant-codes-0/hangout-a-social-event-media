@@ -13,6 +13,14 @@ export class TwoFactorCodeDto {
   code: string;
 }
 
+export class ConfirmTwoFactorResetDto extends TwoFactorCodeDto {
+  @ApiProperty({
+    description: 'The resetToken returned by /auth/2fa/verify/reset',
+  })
+  @IsJWT()
+  resetToken: string;
+}
+
 export class VerifyTwoFactorLoginDto extends TwoFactorCodeDto {
   @ApiProperty({
     description: 'The twoFactorToken returned by sign-in when 2FA is on',

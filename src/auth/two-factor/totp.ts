@@ -15,8 +15,13 @@ import {
 
 export const TOTP_DIGITS = 6;
 export const TOTP_PERIOD_SECONDS = 30;
-/** Accept the previous and next code too, to absorb small clock drift. */
-const TOTP_WINDOW = 1;
+/**
+ * Accept codes up to 2 steps (±60s) either side of now, so a server or phone
+ * clock that is a little off still works.
+ */
+const TOTP_WINDOW = 2;
+/** How far drift diagnostics look, in steps (±10 minutes). */
+const DRIFT_SEARCH_STEPS = 20;
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -94,8 +99,32 @@ export function matchTotp(
     step <= current + TOTP_WINDOW;
     step++
   ) {
-    if (step <= lastUsedStep) continue;
+    if (step < 0 || step <= lastUsedStep) continue;
     if (safeEqual(totpCode(secret, step), code)) return step;
+  }
+  return null;
+}
+
+/**
+ * For a rejected code: how many seconds away from now it would have been
+ * valid (positive = the phone is ahead of the server), or null if it matches
+ * no nearby time at all (wrong secret, e.g. an old entry in the app).
+ * Only used for logging, never to accept a code.
+ */
+export function totpDriftSeconds(
+  secret: string,
+  code: string,
+  now = Date.now(),
+): number | null {
+  if (!new RegExp(`^\\d{${TOTP_DIGITS}}$`).test(code)) return null;
+  const current = currentTimeStep(now);
+  for (let distance = 0; distance <= DRIFT_SEARCH_STEPS; distance++) {
+    for (const step of [current + distance, current - distance]) {
+      if (step < 0) continue;
+      if (safeEqual(totpCode(secret, step), code)) {
+        return (step - current) * TOTP_PERIOD_SECONDS;
+      }
+    }
   }
   return null;
 }

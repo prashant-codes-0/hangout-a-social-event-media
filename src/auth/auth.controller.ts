@@ -27,6 +27,7 @@ import { SendOTPDto, VerifyOTPDto, ResendOTPDto } from './dto/otp.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 import { UpdateSettingsDto } from './dto/settings.dto';
 import {
+  ConfirmTwoFactorResetDto,
   TwoFactorCodeDto,
   VerifyTwoFactorLoginDto,
 } from './dto/two-factor.dto';
@@ -291,6 +292,44 @@ export class AuthController {
     return this.authService.verifyTwoFactorLogin(dto.twoFactorToken, dto.code);
   }
 
+  @Post('2fa/verify/reset')
+  @ApiOperation({
+    summary:
+      'From the sign-in code page: reset the authenticator app with the twoFactorToken and a recovery (or current) code',
+  })
+  @ApiResponse({
+    status: 201,
+    description: '{ secret, otpauthUrl, expiresInMinutes, resetToken }',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Wrong code, or the sign-in token expired',
+  })
+  @ApiResponse({ status: 429, description: 'Too many wrong codes' })
+  @ApiBody({ type: VerifyTwoFactorLoginDto })
+  startTwoFactorResetFromLogin(@Body() dto: VerifyTwoFactorLoginDto) {
+    return this.twoFactorService.startResetFromLogin(
+      dto.twoFactorToken,
+      dto.code,
+    );
+  }
+
+  @Post('2fa/verify/reset/confirm')
+  @ApiOperation({
+    summary:
+      'Finish the sign-in reset: a code from the new app swaps it in and signs you in',
+  })
+  @ApiResponse({ status: 201, description: '{ access_token, user }' })
+  @ApiResponse({ status: 400, description: 'Wrong code or reset expired' })
+  @ApiResponse({ status: 401, description: 'The reset token expired' })
+  @ApiBody({ type: ConfirmTwoFactorResetDto })
+  confirmTwoFactorResetFromLogin(@Body() dto: ConfirmTwoFactorResetDto) {
+    return this.authService.confirmTwoFactorResetFromLogin(
+      dto.resetToken,
+      dto.code,
+    );
+  }
+
   @Get('2fa/status')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
@@ -357,6 +396,38 @@ export class AuthController {
   @ApiBody({ type: TwoFactorCodeDto })
   regenerateRecoveryCodes(@Request() req, @Body() dto: TwoFactorCodeDto) {
     return this.twoFactorService.regenerateRecoveryCodes(req.user.id, dto.code);
+  }
+
+  @Post('2fa/reset')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Move 2FA to a new authenticator app: returns a new QR secret (needs a current or recovery code)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: '{ secret, otpauthUrl, expiresInMinutes }',
+  })
+  @ApiResponse({ status: 400, description: 'Wrong code, or 2FA is not on' })
+  @ApiResponse({ status: 429, description: 'Too many wrong codes' })
+  @ApiBody({ type: TwoFactorCodeDto })
+  startTwoFactorReset(@Request() req, @Body() dto: TwoFactorCodeDto) {
+    return this.twoFactorService.startReset(req.user.id, dto.code);
+  }
+
+  @Post('2fa/reset/confirm')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Finish moving 2FA: a code from the new app replaces the old one (recovery codes stay)',
+  })
+  @ApiResponse({ status: 201, description: '{ enabled: true }' })
+  @ApiResponse({ status: 400, description: 'Wrong code or reset expired' })
+  @ApiBody({ type: TwoFactorCodeDto })
+  confirmTwoFactorReset(@Request() req, @Body() dto: TwoFactorCodeDto) {
+    return this.twoFactorService.confirmReset(req.user.id, dto.code);
   }
 
   // ---- Social sign-in (Google / Facebook) ----
