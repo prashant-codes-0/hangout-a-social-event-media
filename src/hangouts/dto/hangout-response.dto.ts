@@ -16,7 +16,10 @@ export class HangoutResponseDto {
   @ApiProperty({ example: '2024-12-25T19:00:00.000Z' })
   time: string;
 
-  @ApiProperty({ example: 120, description: 'How long the hangout runs, in minutes' })
+  @ApiProperty({
+    example: 120,
+    description: 'How long the hangout runs, in minutes',
+  })
   durationMinutes: number;
 
   @ApiProperty({
@@ -76,7 +79,10 @@ export class JoinRequestResponseDto {
   @ApiProperty({ example: '507f1f77bcf86cd799439012' })
   userId: string;
 
-  @ApiProperty({ example: 'pending', enum: ['pending', 'approved', 'rejected'] })
+  @ApiProperty({
+    example: 'pending',
+    enum: ['pending', 'approved', 'rejected'],
+  })
   status: string;
 
   @ApiProperty({ example: '2024-12-20T10:00:00.000Z' })

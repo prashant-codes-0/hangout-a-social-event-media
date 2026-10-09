@@ -45,7 +45,6 @@ describe('social login (Google / Facebook)', () => {
   let users: Model<User>;
   let authService: AuthService;
 
-
   const get = async (path: string, token?: string) => {
     const res = await fetch(`${baseUrl}${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -66,7 +65,8 @@ describe('social login (Google / Facebook)', () => {
     profile: Parameters<AuthService['signInWithSocial']>[0],
   ) => {
     const result = await authService.signInWithSocial(profile);
-    if (!('access_token' in result)) throw new Error('Unexpected 2FA challenge');
+    if (!('access_token' in result))
+      throw new Error('Unexpected 2FA challenge');
     return result;
   };
 
@@ -158,9 +158,7 @@ describe('social login (Google / Facebook)', () => {
 
   it('links a Facebook login to the existing Google account (same email)', async () => {
     const email = `social-link-${STAMP}@example.com`;
-    const google = await socialSignIn(
-      googleProfile(email, `g-${STAMP}`),
-    );
+    const google = await socialSignIn(googleProfile(email, `g-${STAMP}`));
     const facebook = await socialSignIn({
       provider: 'facebook',
       providerId: `fb-${STAMP}`,
@@ -184,9 +182,7 @@ describe('social login (Google / Facebook)', () => {
       verified: false,
     });
 
-    const social = await socialSignIn(
-      googleProfile(email, `gp-${STAMP}`),
-    );
+    const social = await socialSignIn(googleProfile(email, `gp-${STAMP}`));
     expect(social.user.verified).toBe(true);
     expect(social.user.email).toBe(email);
 
@@ -240,7 +236,11 @@ describe('social login (Google / Facebook)', () => {
       googleProfile(typed.toLowerCase(), `gm-${STAMP}`),
     );
     expect(String(social.user.id)).toBe(String(existing._id));
-    expect(await users.countDocuments({ email: new RegExp(`^${typed.replace(/[.]/g, '\.')}$`, 'i') })).toBe(1);
+    expect(
+      await users.countDocuments({
+        email: new RegExp(`^${typed.replace(/[.]/g, '\.')}$`, 'i'),
+      }),
+    ).toBe(1);
   });
 
   it('keeps the account linked to a provider id even if its email changed', async () => {
@@ -365,29 +365,42 @@ describe('social login redirect flow (configured)', () => {
     const start = await noFollow('/auth/google');
     const cookie = (start.headers.get('set-cookie') ?? '').split(';')[0];
 
-    const forged = await noFollow('/auth/google/callback?code=attacker-code&state=forged', cookie);
+    const forged = await noFollow(
+      '/auth/google/callback?code=attacker-code&state=forged',
+      cookie,
+    );
     const { params } = fragmentOf(forged.headers.get('location'));
     expect(params.get('token')).toBeNull();
     expect(params.get('error')).toMatch(/expired or was started elsewhere/);
 
     // No cookie at all (callback opened from another site)
-    const missing = await noFollow('/auth/google/callback?code=attacker-code&state=whatever');
-    expect(fragmentOf(missing.headers.get('location')).params.get('error')).toMatch(
-      /expired or was started elsewhere/,
+    const missing = await noFollow(
+      '/auth/google/callback?code=attacker-code&state=whatever',
     );
+    expect(
+      fragmentOf(missing.headers.get('location')).params.get('error'),
+    ).toMatch(/expired or was started elsewhere/);
   });
 
   it('completes a Google sign-in and passes the token in the URL fragment only', async () => {
     // Stub the two calls passport makes to Google: code -> token, token -> profile
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const passport = require('passport') as { _strategy: (name: string) => any };
+    const passport = require('passport') as {
+      _strategy: (name: string) => any;
+    };
     const google = passport._strategy('google');
     const oauth2 = google._oauth2;
     const originalGetToken = oauth2.getOAuthAccessToken;
     const originalProfile = google.userProfile;
-    oauth2.getOAuthAccessToken = (_code: string, _params: unknown, cb: (...args: unknown[]) => void) =>
-      cb(null, 'google-access-token', undefined, {});
-    google.userProfile = (_token: string, done: (err: unknown, profile: unknown) => void) =>
+    oauth2.getOAuthAccessToken = (
+      _code: string,
+      _params: unknown,
+      cb: (...args: unknown[]) => void,
+    ) => cb(null, 'google-access-token', undefined, {});
+    google.userProfile = (
+      _token: string,
+      done: (err: unknown, profile: unknown) => void,
+    ) =>
       done(null, {
         id: `flow-${STAMP}`,
         displayName: 'Flow Tester',
@@ -397,10 +410,15 @@ describe('social login redirect flow (configured)', () => {
 
     try {
       const start = await noFollow('/auth/google');
-      const state = new URL(start.headers.get('location') as string).searchParams.get('state');
+      const state = new URL(
+        start.headers.get('location') as string,
+      ).searchParams.get('state');
       const cookie = (start.headers.get('set-cookie') ?? '').split(';')[0];
 
-      const res = await noFollow(`/auth/google/callback?code=good-code&state=${state}`, cookie);
+      const res = await noFollow(
+        `/auth/google/callback?code=good-code&state=${state}`,
+        cookie,
+      );
       expect(res.status).toBe(302);
       const location = res.headers.get('location') as string;
       expect(location.split('#')[0]).toBe(`${FRONTEND}/auth/social-callback`); // no query string
@@ -411,9 +429,13 @@ describe('social login redirect flow (configured)', () => {
       expect(token.split('.')).toHaveLength(3); // a JWT
 
       // The state cookie is single-use
-      expect(res.headers.get('set-cookie') ?? '').toMatch(/oauth_state_google=;/);
+      expect(res.headers.get('set-cookie') ?? '').toMatch(
+        /oauth_state_google=;/,
+      );
 
-      const me = await fetch(`${baseUrl}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const me = await fetch(`${baseUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const body = (await me.json()) as HttpBody;
       expect(body.data?.email).toBe(`flow-${STAMP}@example.com`);
       expect(body.data?.verified).toBe(true);

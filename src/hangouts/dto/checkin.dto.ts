@@ -1,4 +1,12 @@
-import { IsNumber, IsOptional, IsString, MaxLength, Min, Max, IsBoolean } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CheckInCodeDto {
@@ -23,14 +31,22 @@ export class CheckInDto {
   @MaxLength(16)
   code?: string;
 
-  @ApiProperty({ description: 'Your latitude, for a proximity check-in', example: 27.7172, required: false })
+  @ApiProperty({
+    description: 'Your latitude, for a proximity check-in',
+    example: 27.7172,
+    required: false,
+  })
   @IsOptional()
   @IsNumber()
   @Min(-90)
   @Max(90)
   lat?: number;
 
-  @ApiProperty({ description: 'Your longitude, for a proximity check-in', example: 85.324, required: false })
+  @ApiProperty({
+    description: 'Your longitude, for a proximity check-in',
+    example: 85.324,
+    required: false,
+  })
   @IsOptional()
   @IsNumber()
   @Min(-180)

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message } from './schemas/message.schema';
@@ -15,12 +20,20 @@ const EMOJI =
   /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]️?⃣)(?:\p{Emoji_Modifier}|️|‍(?:\p{Extended_Pictographic}|\p{Regional_Indicator})|\p{Regional_Indicator}|⃣)*$/u;
 import { Hangout, HangoutStatus } from '../hangouts/schemas/hangout.schema';
 import { User } from '../auth/schemas/user.schema';
-import { SendMessageDto, EditMessageDto, CreatePollDto, VotePollDto } from './dto/chat.dto';
+import {
+  SendMessageDto,
+  EditMessageDto,
+  CreatePollDto,
+  VotePollDto,
+} from './dto/chat.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/schemas/notification.schema';
 import { RealtimeService } from '../realtime/realtime.service';
 import { escapeRegex } from '../hangouts/hangout-search';
-import { deriveHangoutStatus, formatHangoutWhen } from '../hangouts/hangout-status';
+import {
+  deriveHangoutStatus,
+  formatHangoutWhen,
+} from '../hangouts/hangout-status';
 import { firstUrlIn, sanitizeAttachment } from './media.util';
 import { LinkPreviewService } from './link-preview.service';
 import { UploadService } from './upload.service';
@@ -46,12 +59,20 @@ export class ChatService {
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, userId: string) {
-    const { hangoutId, content, messageType = 'text', replyToId, mentions } = sendMessageDto;
+    const {
+      hangoutId,
+      content,
+      messageType = 'text',
+      replyToId,
+      mentions,
+    } = sendMessageDto;
 
     // The socket path skips the ValidationPipe, so the attachment is re-checked here
     const attachment = sanitizeAttachment(sendMessageDto.attachment);
     if (!attachment && !(content ?? '').trim()) {
-      throw new BadRequestException('A message needs some text or an attachment');
+      throw new BadRequestException(
+        'A message needs some text or an attachment',
+      );
     }
 
     // Access validation is now handled by HangoutAccessGuard at the controller level
@@ -62,8 +83,15 @@ export class ChatService {
       content: content ?? '',
       messageType: attachment ? attachment.kind : messageType,
       attachment,
-      replyTo: replyToId ? await this.replyPreview(hangoutId, replyToId) : undefined,
-      mentions: await this.resolveMentions(hangoutId, content ?? '', mentions, userId),
+      replyTo: replyToId
+        ? await this.replyPreview(hangoutId, replyToId)
+        : undefined,
+      mentions: await this.resolveMentions(
+        hangoutId,
+        content ?? '',
+        mentions,
+        userId,
+      ),
     });
 
     await message.save();
@@ -87,7 +115,11 @@ export class ChatService {
       if (!preview) return;
       message.linkPreview = preview;
       await message.save();
-      this.realtime.emitToRoom(`hangout_${message.hangoutId.toString()}`, 'messageEdited', message.toJSON());
+      this.realtime.emitToRoom(
+        `hangout_${message.hangoutId.toString()}`,
+        'messageEdited',
+        message.toJSON(),
+      );
     } catch {
       // Previews are optional; swallow fetch/store failures
     }
@@ -104,21 +136,33 @@ export class ChatService {
     // The socket path skips DTO validation, so don't trust the shape
     const list = Array.isArray(candidateIds) ? candidateIds.slice(0, 20) : [];
     const ids = [...new Set(list)].filter(
-      id => typeof id === 'string' && Types.ObjectId.isValid(id) && id !== authorId,
+      (id) =>
+        typeof id === 'string' && Types.ObjectId.isValid(id) && id !== authorId,
     );
     if (!ids.length) return [];
 
-    const hangout = await this.hangoutModel.findById(hangoutId).select('createdBy attendees').lean();
+    const hangout = await this.hangoutModel
+      .findById(hangoutId)
+      .select('createdBy attendees')
+      .lean();
     if (!hangout) return [];
-    const members = new Set([hangout.createdBy, ...(hangout.attendees ?? [])].map(String));
+    const members = new Set(
+      [hangout.createdBy, ...(hangout.attendees ?? [])].map(String),
+    );
     const users = await this.userModel
-      .find({ _id: { $in: ids.filter(id => members.has(id)).map(id => new Types.ObjectId(id)) } })
+      .find({
+        _id: {
+          $in: ids
+            .filter((id) => members.has(id))
+            .map((id) => new Types.ObjectId(id)),
+        },
+      })
       .select('name')
       .lean();
     const text = content.toLowerCase();
     return users
-      .filter(u => u.name && text.includes('@' + u.name.toLowerCase()))
-      .map(u => u._id as Types.ObjectId);
+      .filter((u) => u.name && text.includes('@' + u.name.toLowerCase()))
+      .map((u) => u._id as Types.ObjectId);
   }
 
   // Snapshot of the replied-to message; it must be in the same hangout
@@ -131,24 +175,38 @@ export class ChatService {
       .findOne({ _id: replyToId, hangoutId })
       .populate('userId', 'name');
     if (!original) {
-      throw new BadRequestException('The message you are replying to was not found in this hangout');
+      throw new BadRequestException(
+        'The message you are replying to was not found in this hangout',
+      );
     }
-    const author = original.userId as unknown as { _id: Types.ObjectId; name?: string };
+    const author = original.userId as unknown as {
+      _id: Types.ObjectId;
+      name?: string;
+    };
     const text = original.content.replace(/\s+/g, ' ').trim();
     return {
       messageId: original._id,
       userId: author?._id,
       authorName: author?.name ?? '',
-      content: text.length > REPLY_SNIPPET_LENGTH ? text.slice(0, REPLY_SNIPPET_LENGTH - 1) + '…' : text,
+      content:
+        text.length > REPLY_SNIPPET_LENGTH
+          ? text.slice(0, REPLY_SNIPPET_LENGTH - 1) + '…'
+          : text,
     };
   }
 
-  async getMessages(hangoutId: string, userId: string, limit = 50, skip = 0, restrictHistory = false) {
+  async getMessages(
+    hangoutId: string,
+    userId: string,
+    limit = 50,
+    skip = 0,
+    restrictHistory = false,
+  ) {
     // Access validation is handled by HangoutAccessGuard
-    
+
     // Build query
     const query: any = { hangoutId };
-    
+
     // Option: Restrict to last 24 hours for new users
     if (restrictHistory) {
       const last24Hours = new Date();
@@ -168,13 +226,13 @@ export class ChatService {
 
   async getRecentMessages(hangoutId: string, userId: string, hours = 24) {
     // Access validation is handled by HangoutAccessGuard
-    
+
     const fromTime = new Date();
     fromTime.setHours(fromTime.getHours() - hours);
-    
-    const query = { 
+
+    const query = {
       hangoutId,
-      createdAt: { $gte: fromTime }
+      createdAt: { $gte: fromTime },
     };
 
     return this.messageModel
@@ -186,9 +244,14 @@ export class ChatService {
       .exec();
   }
 
-  async editMessage(messageId: string, editMessageDto: EditMessageDto, userId: string, isAdmin: boolean = false) {
+  async editMessage(
+    messageId: string,
+    editMessageDto: EditMessageDto,
+    userId: string,
+    isAdmin: boolean = false,
+  ) {
     const message = await this.messageModel.findById(messageId);
-    
+
     if (!message) {
       throw new NotFoundException('Message not found');
     }
@@ -222,7 +285,12 @@ export class ChatService {
       $inc: { editCount: 1 },
       $push: {
         editHistory: {
-          $each: [{ content: message.content, writtenAt: message.editedAt ?? (message as any).createdAt }],
+          $each: [
+            {
+              content: message.content,
+              writtenAt: message.editedAt ?? (message as any).createdAt,
+            },
+          ],
           $slice: -MAX_EDIT_HISTORY,
         },
       },
@@ -230,40 +298,53 @@ export class ChatService {
     if (!newPreviewUrl) update.$unset = { linkPreview: '' };
 
     const updated = await this.messageModel
-      .findOneAndUpdate(
-        { _id: message._id },
-        update,
-        { new: true },
-      )
+      .findOneAndUpdate({ _id: message._id }, update, { new: true })
       .populate('userId', 'name email')
       .populate('readBy.userId', 'name');
     if (!updated) throw new NotFoundException('Message not found');
 
     // Everyone viewing the chat sees the new text right away
-    this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messageEdited', updated.toJSON());
+    this.realtime.emitToRoom(
+      `hangout_${hangoutId}`,
+      'messageEdited',
+      updated.toJSON(),
+    );
 
     if (newPreviewUrl && updated.linkPreview?.url !== newPreviewUrl) {
       void this.attachLinkPreview(updated);
     }
 
-    const added = mentions.map(String).filter(id => !before.has(id));
+    const added = mentions.map(String).filter((id) => !before.has(id));
     if (added.length) void this.notifyMentions(updated, added);
     return updated;
   }
 
   // Every version of a message, oldest first, ending with the current text. Members only.
   async getEditHistory(messageId: string, userId: string, isAdmin = false) {
-    if (!Types.ObjectId.isValid(messageId)) throw new NotFoundException('Message not found');
-    const message = await this.messageModel.findById(messageId).select('+editHistory');
+    if (!Types.ObjectId.isValid(messageId))
+      throw new NotFoundException('Message not found');
+    const message = await this.messageModel
+      .findById(messageId)
+      .select('+editHistory');
     if (!message) throw new NotFoundException('Message not found');
-    if (!isAdmin && !(await this.checkUserAccess(String(message.hangoutId), userId))) {
+    if (
+      !isAdmin &&
+      !(await this.checkUserAccess(String(message.hangoutId), userId))
+    ) {
       throw new ForbiddenException('You are not a member of this hangout');
     }
     return {
       messageId: String(message._id),
       versions: [
-        ...(message.editHistory ?? []).map(v => ({ content: v.content, writtenAt: v.writtenAt })),
-        { content: message.content, writtenAt: message.editedAt ?? (message as any).createdAt, current: true },
+        ...(message.editHistory ?? []).map((v) => ({
+          content: v.content,
+          writtenAt: v.writtenAt,
+        })),
+        {
+          content: message.content,
+          writtenAt: message.editedAt ?? (message as any).createdAt,
+          current: true,
+        },
       ],
     };
   }
@@ -286,9 +367,13 @@ export class ChatService {
     return { items };
   }
 
-  async deleteMessage(messageId: string, userId: string, isAdmin: boolean = false) {
+  async deleteMessage(
+    messageId: string,
+    userId: string,
+    isAdmin: boolean = false,
+  ) {
     const message = await this.messageModel.findById(messageId);
-    
+
     if (!message) {
       throw new NotFoundException('Message not found');
     }
@@ -302,16 +387,23 @@ export class ChatService {
 
     // The stored file goes with its message (best-effort)
     if (message.attachment?.publicId) {
-      void this.uploads.destroy(message.attachment.publicId, message.attachment.mimeType);
+      void this.uploads.destroy(
+        message.attachment.publicId,
+        message.attachment.mimeType,
+      );
     }
 
     // Drop it from everyone's pinned bar
     if (message.pinned) {
-      this.realtime.emitToRoom(`hangout_${message.hangoutId}`, 'messagePinned', {
-        hangoutId: message.hangoutId.toString(),
-        messageId,
-        pinned: false,
-      });
+      this.realtime.emitToRoom(
+        `hangout_${message.hangoutId}`,
+        'messagePinned',
+        {
+          hangoutId: message.hangoutId.toString(),
+          messageId,
+          pinned: false,
+        },
+      );
     }
 
     return { message: 'Message deleted successfully', messageId };
@@ -319,7 +411,12 @@ export class ChatService {
 
   // ---- Pinned messages (organizer or admin; at most MAX_PINNED per hangout) ----
 
-  async setPinned(messageId: string, userId: string, pinned: boolean, isAdmin = false) {
+  async setPinned(
+    messageId: string,
+    userId: string,
+    pinned: boolean,
+    isAdmin = false,
+  ) {
     if (!Types.ObjectId.isValid(messageId)) {
       throw new NotFoundException('Message not found');
     }
@@ -327,12 +424,16 @@ export class ChatService {
     if (!message) {
       throw new NotFoundException('Message not found');
     }
-    const hangout = await this.hangoutModel.findById(message.hangoutId).select('createdBy');
+    const hangout = await this.hangoutModel
+      .findById(message.hangoutId)
+      .select('createdBy');
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
     if (!isAdmin && hangout.createdBy.toString() !== userId) {
-      throw new ForbiddenException('Only the hangout organizer can pin messages');
+      throw new ForbiddenException(
+        'Only the hangout organizer can pin messages',
+      );
     }
 
     // Pinning past the limit unpins the oldest pin
@@ -341,7 +442,10 @@ export class ChatService {
       const current = await this.messageModel
         .find({ hangoutId: message.hangoutId, pinned: true })
         .sort({ pinnedAt: 1 });
-      for (const old of current.slice(0, Math.max(0, current.length - MAX_PINNED + 1))) {
+      for (const old of current.slice(
+        0,
+        Math.max(0, current.length - MAX_PINNED + 1),
+      )) {
         old.pinned = false;
         old.pinnedBy = undefined;
         old.pinnedAt = undefined;
@@ -364,7 +468,13 @@ export class ChatService {
 
     const hangoutId = message.hangoutId.toString();
     // Everyone viewing the hangout chat updates their pinned bar
-    const event = { hangoutId, messageId: String(message._id), pinned: message.pinned, pinnedMessage: message, unpinnedMessageIds };
+    const event = {
+      hangoutId,
+      messageId: String(message._id),
+      pinned: message.pinned,
+      pinnedMessage: message,
+      unpinnedMessageIds,
+    };
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messagePinned', event);
     // Not "message": the response interceptor treats a top-level `message` key as the status text
     return event;
@@ -385,7 +495,9 @@ export class ChatService {
     if (!Types.ObjectId.isValid(messageId)) {
       throw new NotFoundException('Message not found');
     }
-    const message = await this.messageModel.findById(messageId).select('hangoutId reactions');
+    const message = await this.messageModel
+      .findById(messageId)
+      .select('hangoutId reactions');
     if (!message) {
       throw new NotFoundException('Message not found');
     }
@@ -400,21 +512,42 @@ export class ChatService {
     const alreadyReacted = current.some((id) => id.toString() === userId);
 
     if (alreadyReacted) {
-      await this.messageModel.updateOne({ _id: messageId }, { $pull: { [path]: uid } });
+      await this.messageModel.updateOne(
+        { _id: messageId },
+        { $pull: { [path]: uid } },
+      );
       // Drop the emoji once nobody uses it
-      await this.messageModel.updateOne({ _id: messageId, [path]: { $size: 0 } }, { $unset: { [path]: '' } });
+      await this.messageModel.updateOne(
+        { _id: messageId, [path]: { $size: 0 } },
+        { $unset: { [path]: '' } },
+      );
     } else {
-      if (!message.reactions?.has(emoji) && (message.reactions?.size ?? 0) >= MAX_REACTION_KINDS) {
-        throw new BadRequestException(`A message can have at most ${MAX_REACTION_KINDS} different reactions`);
+      if (
+        !message.reactions?.has(emoji) &&
+        (message.reactions?.size ?? 0) >= MAX_REACTION_KINDS
+      ) {
+        throw new BadRequestException(
+          `A message can have at most ${MAX_REACTION_KINDS} different reactions`,
+        );
       }
-      await this.messageModel.updateOne({ _id: messageId }, { $addToSet: { [path]: uid } });
+      await this.messageModel.updateOne(
+        { _id: messageId },
+        { $addToSet: { [path]: uid } },
+      );
     }
 
-    const updated = await this.messageModel.findById(messageId).select('reactions');
+    const updated = await this.messageModel
+      .findById(messageId)
+      .select('reactions');
     const event = {
       hangoutId,
       messageId,
-      reactions: (updated?.toJSON() as unknown as { reactions?: Record<string, string[]> })?.reactions ?? {},
+      reactions:
+        (
+          updated?.toJSON() as unknown as {
+            reactions?: Record<string, string[]>;
+          }
+        )?.reactions ?? {},
     };
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messageReactions', event);
     return event;
@@ -428,7 +561,9 @@ export class ChatService {
    * The user's own messages are skipped.
    */
   async markRead(hangoutId: string, userId: string, upToMessageId: string) {
-    const upTo = await this.messageModel.findOne({ _id: upToMessageId, hangoutId }).select('createdAt');
+    const upTo = await this.messageModel
+      .findOne({ _id: upToMessageId, hangoutId })
+      .select('createdAt');
     if (!upTo) {
       throw new NotFoundException('Message not found in this hangout');
     }
@@ -447,7 +582,10 @@ export class ChatService {
     );
 
     if (result.modifiedCount > 0) {
-      const reader = await this.userModel.findById(userId).select('name').lean();
+      const reader = await this.userModel
+        .findById(userId)
+        .select('name')
+        .lean();
       this.realtime.emitToRoom(`hangout_${hangoutId}`, 'messagesRead', {
         hangoutId,
         reader: { _id: userId, name: reader?.name ?? '' },
@@ -473,11 +611,16 @@ export class ChatService {
   async notifyGroupMessage(message: Message, senderId: string) {
     try {
       const hangoutId = message.hangoutId.toString();
-      const hangout = await this.hangoutModel.findById(hangoutId).select('title attendees createdBy').lean();
+      const hangout = await this.hangoutModel
+        .findById(hangoutId)
+        .select('title attendees createdBy')
+        .lean();
       if (!hangout) return;
 
       const viewing = await this.realtime.userIdsInRoom(`hangout_${hangoutId}`);
-      const memberIds = new Set([hangout.createdBy, ...hangout.attendees].map(id => id.toString()));
+      const memberIds = new Set(
+        [hangout.createdBy, ...hangout.attendees].map((id) => id.toString()),
+      );
       const senderName = (message.userId as any)?.name ?? 'Someone';
       // Mentioned members get their own alert instead of the grouped one
       const mentioned = new Set((message.mentions ?? []).map(String));
@@ -485,15 +628,19 @@ export class ChatService {
 
       await Promise.all(
         [...memberIds]
-          .filter(id => id !== senderId && !viewing.has(id) && !mentioned.has(id))
-          .map(id => this.notifications.notifyGrouped(id, {
-            type: NotificationType.GROUP_MESSAGE,
-            actorId: senderId,
-            hangoutId,
-            title: `New messages in ${hangout.title}`,
-            body: `${senderName}: ${message.content}`,
-            link: `/hangouts/details/${hangoutId}`,
-          })),
+          .filter(
+            (id) => id !== senderId && !viewing.has(id) && !mentioned.has(id),
+          )
+          .map((id) =>
+            this.notifications.notifyGrouped(id, {
+              type: NotificationType.GROUP_MESSAGE,
+              actorId: senderId,
+              hangoutId,
+              title: `New messages in ${hangout.title}`,
+              body: `${senderName}: ${message.content}`,
+              link: `/hangouts/details/${hangoutId}`,
+            }),
+          ),
       );
     } catch (error) {
       console.error('Failed to send group message alerts:', error.message);
@@ -511,14 +658,21 @@ export class ChatService {
       if (!userIds.length) return;
       const hangoutId = String(message.hangoutId);
       const title =
-        hangoutTitle ?? (await this.hangoutModel.findById(hangoutId).select('title').lean())?.title ?? 'a hangout';
-      const watching = viewing ?? (await this.realtime.userIdsInRoom(`hangout_${hangoutId}`));
-      const author = message.userId as unknown as { _id?: unknown; name?: string };
+        hangoutTitle ??
+        (await this.hangoutModel.findById(hangoutId).select('title').lean())
+          ?.title ??
+        'a hangout';
+      const watching =
+        viewing ?? (await this.realtime.userIdsInRoom(`hangout_${hangoutId}`));
+      const author = message.userId as unknown as {
+        _id?: unknown;
+        name?: string;
+      };
       const senderId = String(author?._id ?? message.userId);
       await Promise.all(
         userIds
-          .filter(id => id !== senderId && !watching.has(id))
-          .map(id =>
+          .filter((id) => id !== senderId && !watching.has(id))
+          .map((id) =>
             this.notifications.notify(id, {
               type: NotificationType.MENTION,
               actorId: senderId,
@@ -541,7 +695,7 @@ export class ChatService {
     }
 
     const isAttendee = hangout.attendees.some(
-      attendeeId => attendeeId.toString() === userId
+      (attendeeId) => attendeeId.toString() === userId,
     );
     const isCreator = hangout.createdBy.toString() === userId;
 
@@ -565,7 +719,10 @@ export class ChatService {
 
   // Polls are pointless once the hangout is underway: mark still-open polls closed.
   private async closePollsOfStartedHangout(hangoutId: string) {
-    const hangout = await this.hangoutModel.findById(hangoutId).select('time').lean();
+    const hangout = await this.hangoutModel
+      .findById(hangoutId)
+      .select('time')
+      .lean();
     if (!hangout?.time || hangout.time.getTime() > Date.now()) return;
     await this.messageModel.updateMany(
       { hangoutId, messageType: 'poll', 'poll.status': 'open' },
@@ -579,7 +736,9 @@ export class ChatService {
    */
   async createPoll(hangoutId: string, userId: string, dto: CreatePollDto) {
     if (!(await this.checkUserAccess(hangoutId, userId))) {
-      throw new ForbiddenException('You must be part of this hangout to start a poll');
+      throw new ForbiddenException(
+        'You must be part of this hangout to start a poll',
+      );
     }
     const kind = dto.kind ?? 'general';
     const question = (dto.question ?? '').trim();
@@ -600,10 +759,14 @@ export class ChatService {
       seen.add(text.toLowerCase());
       const value = option.value?.trim();
       if (kind === 'time' && (!value || isNaN(new Date(value).getTime()))) {
-        throw new BadRequestException('Every option of a time poll needs a valid date and time');
+        throw new BadRequestException(
+          'Every option of a time poll needs a valid date and time',
+        );
       }
       if (kind === 'place' && !value) {
-        throw new BadRequestException('Every option of a place poll needs a value');
+        throw new BadRequestException(
+          'Every option of a place poll needs a value',
+        );
       }
       options.push({ text, value: value || undefined });
     }
@@ -617,15 +780,21 @@ export class ChatService {
         question,
         kind,
         status: 'open',
-        closesAt: dto.expiresInHours ? new Date(Date.now() + dto.expiresInHours * 3600 * 1000) : undefined,
-        options: options.map(o => ({ ...o, votes: [] })),
+        closesAt: dto.expiresInHours
+          ? new Date(Date.now() + dto.expiresInHours * 3600 * 1000)
+          : undefined,
+        options: options.map((o) => ({ ...o, votes: [] })),
       },
     });
     await message.save();
     await message.populate('userId', 'name email');
 
     // People watching the chat get it live; the creator dedupes against the HTTP response
-    this.realtime.emitToRoom(`hangout_${hangoutId}`, 'newMessage', message.toJSON());
+    this.realtime.emitToRoom(
+      `hangout_${hangoutId}`,
+      'newMessage',
+      message.toJSON(),
+    );
     void this.notifyGroupMessage(message, userId);
     return message;
   }
@@ -641,13 +810,18 @@ export class ChatService {
       throw new ForbiddenException('You must be part of this hangout to vote');
     }
     // Voting stops the moment the hangout's start time passes (same idea as closesAt)
-    const hangout = await this.hangoutModel.findById(hangoutId).select('time').lean();
+    const hangout = await this.hangoutModel
+      .findById(hangoutId)
+      .select('time')
+      .lean();
     if (hangout?.time && hangout.time.getTime() <= Date.now()) {
       await this.messageModel.updateMany(
         { hangoutId, messageType: 'poll', 'poll.status': 'open' },
         { $set: { 'poll.status': 'closed' } },
       );
-      throw new BadRequestException('Voting is closed — this hangout has already started');
+      throw new BadRequestException(
+        'Voting is closed — this hangout has already started',
+      );
     }
     const poll = message.poll!;
     if (poll.status !== 'open') {
@@ -657,7 +831,7 @@ export class ChatService {
       throw new BadRequestException('Voting time is up for this poll');
     }
     const optionOid = new Types.ObjectId(dto.optionId);
-    if (!poll.options.some(o => String(o._id) === dto.optionId)) {
+    if (!poll.options.some((o) => String(o._id) === dto.optionId)) {
       throw new BadRequestException('That option is not part of this poll');
     }
 
@@ -723,13 +897,18 @@ export class ChatService {
       throw new BadRequestException('This poll is already closed');
     }
     const hangoutId = message.hangoutId.toString();
-    const hangout = await this.hangoutModel.findById(hangoutId).select('createdBy').lean();
+    const hangout = await this.hangoutModel
+      .findById(hangoutId)
+      .select('createdBy')
+      .lean();
     if (!hangout) {
       throw new NotFoundException('Hangout not found');
     }
     const isOrganizer = String(hangout.createdBy) === userId;
     if (!isAdmin && !isOrganizer && String(message.userId) !== userId) {
-      throw new ForbiddenException('Only the poll creator, the organizer, or an admin can close this poll');
+      throw new ForbiddenException(
+        'Only the poll creator, the organizer, or an admin can close this poll',
+      );
     }
 
     poll.status = 'closed';
@@ -751,7 +930,9 @@ export class ChatService {
     const hangoutId = message.hangoutId.toString();
 
     if (poll.kind === 'general') {
-      throw new BadRequestException('This poll does not change the hangout details');
+      throw new BadRequestException(
+        'This poll does not change the hangout details',
+      );
     }
     if (poll.status === 'applied') {
       throw new BadRequestException('This poll has already been applied');
@@ -761,10 +942,14 @@ export class ChatService {
       throw new NotFoundException('Hangout not found');
     }
     if (!isAdmin && hangout.createdBy.toString() !== userId) {
-      throw new ForbiddenException('Only the hangout organizer can apply a poll result');
+      throw new ForbiddenException(
+        'Only the hangout organizer can apply a poll result',
+      );
     }
 
-    const ranked = [...poll.options].sort((a, b) => b.votes.length - a.votes.length);
+    const ranked = [...poll.options].sort(
+      (a, b) => b.votes.length - a.votes.length,
+    );
     const winner = ranked[0];
     if (!winner || winner.votes.length === 0) {
       throw new BadRequestException('Nobody has voted yet');
@@ -786,7 +971,11 @@ export class ChatService {
       appliedValue = start.toISOString();
       $set.time = start;
       $set.remindersSent = [];
-      $set.status = deriveHangoutStatus(start, hangout.durationMinutes, hangout.status);
+      $set.status = deriveHangoutStatus(
+        start,
+        hangout.durationMinutes,
+        hangout.status,
+      );
     }
 
     const update: Record<string, unknown> = { $set };
@@ -801,17 +990,33 @@ export class ChatService {
     await message.save();
 
     const whenText =
-      poll.kind === 'time' ? formatHangoutWhen(new Date(appliedValue)) : appliedValue;
+      poll.kind === 'time'
+        ? formatHangoutWhen(new Date(appliedValue))
+        : appliedValue;
     const summary =
       poll.kind === 'time'
         ? `📅 Time updated from the poll: ${whenText}`
         : `📍 Place updated from the poll: ${appliedValue}`;
-    const note = new this.messageModel({ hangoutId, userId, content: summary, messageType: 'system' });
+    const note = new this.messageModel({
+      hangoutId,
+      userId,
+      content: summary,
+      messageType: 'system',
+    });
     await note.save();
     await note.populate('userId', 'name email');
-    this.realtime.emitToRoom(`hangout_${hangoutId}`, 'newMessage', note.toJSON());
+    this.realtime.emitToRoom(
+      `hangout_${hangoutId}`,
+      'newMessage',
+      note.toJSON(),
+    );
 
-    const event = { hangoutId, messageId, poll, applied: { kind: poll.kind, value: appliedValue, label: whenText } };
+    const event = {
+      hangoutId,
+      messageId,
+      poll,
+      applied: { kind: poll.kind, value: appliedValue, label: whenText },
+    };
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'pollUpdated', event);
     void this.notifyHangoutUpdate(hangout, userId, event.applied);
     return event;
@@ -822,7 +1027,9 @@ export class ChatService {
     if (!Types.ObjectId.isValid(messageId)) {
       throw new NotFoundException('Poll not found');
     }
-    const message = await this.messageModel.findById(messageId).populate('userId', 'name email');
+    const message = await this.messageModel
+      .findById(messageId)
+      .populate('userId', 'name email');
     if (!message || message.messageType !== 'poll' || !message.poll) {
       throw new NotFoundException('Poll not found');
     }
@@ -836,24 +1043,36 @@ export class ChatService {
     applied: { kind: string; value: string; label: string },
   ) {
     try {
-      const memberIds = new Set([hangout.createdBy, ...(hangout.attendees ?? [])].map(id => String(id)));
-      const viewing = await this.realtime.userIdsInRoom(`hangout_${hangout._id}`);
+      const memberIds = new Set(
+        [hangout.createdBy, ...(hangout.attendees ?? [])].map((id) =>
+          String(id),
+        ),
+      );
+      const viewing = await this.realtime.userIdsInRoom(
+        `hangout_${hangout._id}`,
+      );
       await Promise.all(
         [...memberIds]
-          .filter(id => id !== actorId && !viewing.has(id))
-          .map(id =>
+          .filter((id) => id !== actorId && !viewing.has(id))
+          .map((id) =>
             this.notifications.notify(id, {
               type: NotificationType.HANGOUT_UPDATED,
               actorId,
               hangoutId: String(hangout._id),
               title: `${hangout.title} was updated`,
-              body: applied.kind === 'time' ? `New time: ${applied.label}` : `New place: ${applied.label}`,
+              body:
+                applied.kind === 'time'
+                  ? `New time: ${applied.label}`
+                  : `New place: ${applied.label}`,
               link: `/hangouts/details/${hangout._id}`,
             }),
           ),
       );
     } catch (error) {
-      console.error('Failed to send hangout update alerts:', (error as Error).message);
+      console.error(
+        'Failed to send hangout update alerts:',
+        (error as Error).message,
+      );
     }
   }
 }

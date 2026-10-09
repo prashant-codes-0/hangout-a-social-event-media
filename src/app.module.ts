@@ -19,7 +19,10 @@ import { SocialModule } from './social/social.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/hangout'),
+        uri: configService.get<string>(
+          'MONGODB_URI',
+          'mongodb://localhost:27017/hangout',
+        ),
       }),
       inject: [ConfigService],
     }),

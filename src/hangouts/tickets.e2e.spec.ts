@@ -1,7 +1,11 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { MongooseModule, getConnectionToken, getModelToken } from '@nestjs/mongoose';
+import {
+  MongooseModule,
+  getConnectionToken,
+  getModelToken,
+} from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { HangoutsModule } from './hangouts.module';
 import { HangoutsService } from './hangouts.service';
@@ -10,7 +14,11 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../auth/schemas/user.schema';
 import { Hangout, HangoutStatus } from './schemas/hangout.schema';
-import { HangoutTicket, TicketPaymentStatus, TicketStatus } from './schemas/hangout-ticket.schema';
+import {
+  HangoutTicket,
+  TicketPaymentStatus,
+  TicketStatus,
+} from './schemas/hangout-ticket.schema';
 
 jest.setTimeout(60000);
 
@@ -59,11 +67,21 @@ describe('hangout tickets', () => {
 
   const join = async (hangoutId: string, userId: string) => {
     await hangouts.requestToJoin(hangoutId, userId);
-    await hangouts.handleJoinRequestNew(hangoutId, userId, 'approve', organizer);
+    await hangouts.handleJoinRequestNew(
+      hangoutId,
+      userId,
+      'approve',
+      organizer,
+    );
   };
 
   const ticketOf = (hangoutId: string, userId: string) =>
-    ticketModel.findOne({ hangoutId: new Types.ObjectId(hangoutId), userId: new Types.ObjectId(userId) }).lean();
+    ticketModel
+      .findOne({
+        hangoutId: new Types.ObjectId(hangoutId),
+        userId: new Types.ObjectId(userId),
+      })
+      .lean();
 
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
@@ -109,14 +127,22 @@ describe('hangout tickets', () => {
     expect(mine.code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
     expect(mine.hangout.price).toBe(500);
 
-    await expect(tickets.myTicket(hangoutId, organizer)).rejects.toThrow(BadRequestException);
-    await expect(tickets.myTicket(hangoutId, bob)).rejects.toThrow("You don't have a ticket");
+    await expect(tickets.myTicket(hangoutId, organizer)).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(tickets.myTicket(hangoutId, bob)).rejects.toThrow(
+      "You don't have a ticket",
+    );
   });
 
   it('lets only the organizer see the dashboard', async () => {
     const hangoutId = await makeHangout();
-    await expect(tickets.organizerView(hangoutId, alice, false)).rejects.toThrow(ForbiddenException);
-    await expect(tickets.organizerView(hangoutId, alice, true)).resolves.toBeDefined(); // admin
+    await expect(
+      tickets.organizerView(hangoutId, alice, false),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      tickets.organizerView(hangoutId, alice, true),
+    ).resolves.toBeDefined(); // admin
   });
 
   it('records payments by hand and totals them', async () => {
@@ -136,11 +162,28 @@ describe('hangout tickets', () => {
     expect(paid.paymentMethod).toBe('khalti');
 
     await expect(
-      tickets.updatePayment(hangoutId, String(ticket!._id), { status: TicketPaymentStatus.PAID }, organizer, false),
+      tickets.updatePayment(
+        hangoutId,
+        String(ticket!._id),
+        { status: TicketPaymentStatus.PAID },
+        organizer,
+        false,
+      ),
     ).rejects.toThrow('Only an unpaid, active ticket');
 
-    const { summary } = await tickets.organizerView(hangoutId, organizer, false);
-    expect(summary).toMatchObject({ issued: 2, paid: 1, unpaid: 1, collected: 500, outstanding: 500, net: 500 });
+    const { summary } = await tickets.organizerView(
+      hangoutId,
+      organizer,
+      false,
+    );
+    expect(summary).toMatchObject({
+      issued: 2,
+      paid: 1,
+      unpaid: 1,
+      collected: 500,
+      outstanding: 500,
+      net: 500,
+    });
   });
 
   it('checks people in by ticket code, once', async () => {
@@ -149,24 +192,42 @@ describe('hangout tickets', () => {
     const { code } = await tickets.myTicket(hangoutId, alice);
 
     // Typed loosely: lower case, no dash
-    const first = await tickets.checkInByCode(hangoutId, code.toLowerCase().replace('-', ''), organizer, false);
+    const first = await tickets.checkInByCode(
+      hangoutId,
+      code.toLowerCase().replace('-', ''),
+      organizer,
+      false,
+    );
     expect(first.alreadyCheckedIn).toBe(false);
     expect(first.ticket.user.name).toBe('Alice');
     expect(first.ticket.paymentStatus).toBe(TicketPaymentStatus.UNPAID);
 
-    const again = await tickets.checkInByCode(hangoutId, code, organizer, false);
+    const again = await tickets.checkInByCode(
+      hangoutId,
+      code,
+      organizer,
+      false,
+    );
     expect(again.alreadyCheckedIn).toBe(true);
 
-    await expect(tickets.checkInByCode(hangoutId, 'AAAA-AAAA', organizer, false)).rejects.toThrow(
-      'No ticket with that code',
-    );
+    await expect(
+      tickets.checkInByCode(hangoutId, 'AAAA-AAAA', organizer, false),
+    ).rejects.toThrow('No ticket with that code');
     // A ticket only works for its own hangout
     const other = await makeHangout();
-    await expect(tickets.checkInByCode(other, code, organizer, false)).rejects.toThrow('No ticket with that code');
+    await expect(
+      tickets.checkInByCode(other, code, organizer, false),
+    ).rejects.toThrow('No ticket with that code');
     // Attendees can't check others in
-    await expect(tickets.checkInByCode(hangoutId, code, alice, false)).rejects.toThrow(ForbiddenException);
+    await expect(
+      tickets.checkInByCode(hangoutId, code, alice, false),
+    ).rejects.toThrow(ForbiddenException);
 
-    const { summary } = await tickets.organizerView(hangoutId, organizer, false);
+    const { summary } = await tickets.organizerView(
+      hangoutId,
+      organizer,
+      false,
+    );
     expect(summary.checkedIn).toBe(1);
   });
 
@@ -174,20 +235,44 @@ describe('hangout tickets', () => {
     const hangoutId = await makeHangout();
     await join(hangoutId, alice);
     const ticket = await ticketOf(hangoutId, alice);
-    await tickets.updatePayment(hangoutId, String(ticket!._id), { status: TicketPaymentStatus.PAID }, organizer, false);
+    await tickets.updatePayment(
+      hangoutId,
+      String(ticket!._id),
+      { status: TicketPaymentStatus.PAID },
+      organizer,
+      false,
+    );
 
     await hangouts.leaveHangout(hangoutId, alice);
     const left = await ticketOf(hangoutId, alice);
     expect(left!.status).toBe(TicketStatus.CANCELLED);
     expect(left!.paymentStatus).toBe(TicketPaymentStatus.REFUND_OWED);
-    await expect(tickets.checkInByCode(hangoutId, left!.code, organizer, false)).rejects.toThrow('was cancelled');
+    await expect(
+      tickets.checkInByCode(hangoutId, left!.code, organizer, false),
+    ).rejects.toThrow('was cancelled');
 
     let { summary } = await tickets.organizerView(hangoutId, organizer, false);
-    expect(summary).toMatchObject({ issued: 0, cancelled: 1, refundsOwed: 1, refundsOwedAmount: 500 });
+    expect(summary).toMatchObject({
+      issued: 0,
+      cancelled: 1,
+      refundsOwed: 1,
+      refundsOwedAmount: 500,
+    });
 
-    await tickets.updatePayment(hangoutId, String(ticket!._id), { status: TicketPaymentStatus.REFUNDED }, organizer, false);
+    await tickets.updatePayment(
+      hangoutId,
+      String(ticket!._id),
+      { status: TicketPaymentStatus.REFUNDED },
+      organizer,
+      false,
+    );
     ({ summary } = await tickets.organizerView(hangoutId, organizer, false));
-    expect(summary).toMatchObject({ refundsOwed: 0, collected: 500, refunded: 500, net: 0 });
+    expect(summary).toMatchObject({
+      refundsOwed: 0,
+      collected: 500,
+      refunded: 500,
+      net: 0,
+    });
 
     // Rejoining brings the same ticket back, unpaid since the money went back
     await join(hangoutId, alice);
@@ -201,27 +286,46 @@ describe('hangout tickets', () => {
     const hangoutId = await makeHangout();
     await join(hangoutId, bob);
 
-    await hangouts.setStatus(hangoutId, { status: HangoutStatus.CANCELLED } as never, organizer);
-    expect((await ticketOf(hangoutId, bob))!.status).toBe(TicketStatus.CANCELLED);
+    await hangouts.setStatus(
+      hangoutId,
+      { status: HangoutStatus.CANCELLED } as never,
+      organizer,
+    );
+    expect((await ticketOf(hangoutId, bob))!.status).toBe(
+      TicketStatus.CANCELLED,
+    );
 
-    await hangouts.setStatus(hangoutId, { status: HangoutStatus.UPCOMING } as never, organizer);
+    await hangouts.setStatus(
+      hangoutId,
+      { status: HangoutStatus.UPCOMING } as never,
+      organizer,
+    );
     expect((await ticketOf(hangoutId, bob))!.status).toBe(TicketStatus.ACTIVE);
   });
 
   it('gives attendees from before tickets existed a ticket on first look', async () => {
     const hangoutId = await makeHangout(0);
-    await hangoutModel.updateOne({ _id: hangoutId }, { $push: { attendees: new Types.ObjectId(carol) } });
+    await hangoutModel.updateOne(
+      { _id: hangoutId },
+      { $push: { attendees: new Types.ObjectId(carol) } },
+    );
     expect(await ticketOf(hangoutId, carol)).toBeNull();
 
     const list = await tickets.myTickets(carol);
-    expect(list.map(t => String(t.hangout._id))).toContain(hangoutId);
-    expect(list.find(t => String(t.hangout._id) === hangoutId)!.hangout.price).toBe(0);
+    expect(list.map((t) => String(t.hangout._id))).toContain(hangoutId);
+    expect(
+      list.find((t) => String(t.hangout._id) === hangoutId)!.hangout.price,
+    ).toBe(0);
   });
 
   it('deletes tickets with the hangout', async () => {
     const hangoutId = await makeHangout();
     await join(hangoutId, alice);
     await hangouts.remove(hangoutId, organizer);
-    expect(await ticketModel.countDocuments({ hangoutId: new Types.ObjectId(hangoutId) })).toBe(0);
+    expect(
+      await ticketModel.countDocuments({
+        hangoutId: new Types.ObjectId(hangoutId),
+      }),
+    ).toBe(0);
   });
 });

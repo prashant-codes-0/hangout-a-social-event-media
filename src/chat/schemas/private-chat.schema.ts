@@ -18,7 +18,10 @@ export class PrivateChat extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   recipient: Types.ObjectId;
 
-  @Prop({ default: PrivateChatStatus.PENDING, enum: Object.values(PrivateChatStatus) })
+  @Prop({
+    default: PrivateChatStatus.PENDING,
+    enum: Object.values(PrivateChatStatus),
+  })
   status: PrivateChatStatus;
 
   @Prop({ type: Date })

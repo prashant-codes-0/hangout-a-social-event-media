@@ -5,7 +5,10 @@ import {
   REMINDER_WINDOWS,
   REMINDER_TOLERANCE_MS,
 } from './hangout-status';
-import { DEFAULT_DURATION_MINUTES, HangoutStatus } from './schemas/hangout.schema';
+import {
+  DEFAULT_DURATION_MINUTES,
+  HangoutStatus,
+} from './schemas/hangout.schema';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -20,45 +23,59 @@ describe('deriveHangoutStatus', () => {
 
   it('is ongoing between the start and the end of the duration', () => {
     const justAfterStart = START.getTime() + MINUTE;
-    expect(deriveHangoutStatus(START, 120, HangoutStatus.UPCOMING, justAfterStart)).toBe(
-      HangoutStatus.ONGOING,
-    );
+    expect(
+      deriveHangoutStatus(START, 120, HangoutStatus.UPCOMING, justAfterStart),
+    ).toBe(HangoutStatus.ONGOING);
   });
 
   it('is completed once the duration has elapsed', () => {
     const afterEnd = START.getTime() + 120 * MINUTE;
-    expect(deriveHangoutStatus(START, 120, HangoutStatus.ONGOING, afterEnd)).toBe(
-      HangoutStatus.COMPLETED,
-    );
+    expect(
+      deriveHangoutStatus(START, 120, HangoutStatus.ONGOING, afterEnd),
+    ).toBe(HangoutStatus.COMPLETED);
   });
 
   it('treats cancelled as terminal, even long after the event', () => {
     const longAfter = START.getTime() + 40 * 24 * HOUR;
-    expect(deriveHangoutStatus(START, 120, HangoutStatus.CANCELLED, longAfter)).toBe(
-      HangoutStatus.CANCELLED,
-    );
+    expect(
+      deriveHangoutStatus(START, 120, HangoutStatus.CANCELLED, longAfter),
+    ).toBe(HangoutStatus.CANCELLED);
   });
 
   it('falls back to the default duration when none is given', () => {
-    const justInsideDefault = START.getTime() + (DEFAULT_DURATION_MINUTES - 1) * MINUTE;
-    expect(deriveHangoutStatus(START, undefined, HangoutStatus.ONGOING, justInsideDefault)).toBe(
-      HangoutStatus.ONGOING,
-    );
+    const justInsideDefault =
+      START.getTime() + (DEFAULT_DURATION_MINUTES - 1) * MINUTE;
+    expect(
+      deriveHangoutStatus(
+        START,
+        undefined,
+        HangoutStatus.ONGOING,
+        justInsideDefault,
+      ),
+    ).toBe(HangoutStatus.ONGOING);
 
-    const justOutsideDefault = START.getTime() + (DEFAULT_DURATION_MINUTES + 1) * MINUTE;
-    expect(deriveHangoutStatus(START, undefined, HangoutStatus.ONGOING, justOutsideDefault)).toBe(
-      HangoutStatus.COMPLETED,
-    );
+    const justOutsideDefault =
+      START.getTime() + (DEFAULT_DURATION_MINUTES + 1) * MINUTE;
+    expect(
+      deriveHangoutStatus(
+        START,
+        undefined,
+        HangoutStatus.ONGOING,
+        justOutsideDefault,
+      ),
+    ).toBe(HangoutStatus.COMPLETED);
   });
 
   it('restores an event to whatever the clock says when no current status is given', () => {
-    expect(deriveHangoutStatus(START, 120, undefined, NOW)).toBe(HangoutStatus.UPCOMING);
+    expect(deriveHangoutStatus(START, 120, undefined, NOW)).toBe(
+      HangoutStatus.UPCOMING,
+    );
   });
 
   it('is not confused by an unparseable date', () => {
-    expect(deriveHangoutStatus('not-a-date', 120, HangoutStatus.UPCOMING, NOW)).toBe(
-      HangoutStatus.UPCOMING,
-    );
+    expect(
+      deriveHangoutStatus('not-a-date', 120, HangoutStatus.UPCOMING, NOW),
+    ).toBe(HangoutStatus.UPCOMING);
   });
 });
 
@@ -76,12 +93,12 @@ describe('isDiscoverable', () => {
 
 describe('reminder windows', () => {
   it('orders windows from furthest to nearest', () => {
-    const offsets = REMINDER_WINDOWS.map(w => w.offsetMs);
+    const offsets = REMINDER_WINDOWS.map((w) => w.offsetMs);
     expect(offsets).toEqual([...offsets].sort((a, b) => b - a));
   });
 
   it('uses unique kinds so each window is claimed independently', () => {
-    const kinds = REMINDER_WINDOWS.map(w => w.kind);
+    const kinds = REMINDER_WINDOWS.map((w) => w.kind);
     expect(new Set(kinds).size).toBe(kinds.length);
   });
 

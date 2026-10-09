@@ -19,7 +19,13 @@ export enum TicketPaymentStatus {
   REFUNDED = 'refunded',
 }
 
-export const TICKET_PAYMENT_METHODS = ['cash', 'khalti', 'esewa', 'bank', 'other'] as const;
+export const TICKET_PAYMENT_METHODS = [
+  'cash',
+  'khalti',
+  'esewa',
+  'bank',
+  'other',
+] as const;
 export type TicketPaymentMethod = (typeof TICKET_PAYMENT_METHODS)[number];
 
 // One attendee's ticket for a hangout. Issued when they become an attendee,
@@ -45,7 +51,10 @@ export class HangoutTicket extends Document {
   @Prop({ type: String, enum: ['left', 'hangout_cancelled'] })
   cancelReason?: 'left' | 'hangout_cancelled';
 
-  @Prop({ enum: Object.values(TicketPaymentStatus), default: TicketPaymentStatus.UNPAID })
+  @Prop({
+    enum: Object.values(TicketPaymentStatus),
+    default: TicketPaymentStatus.UNPAID,
+  })
   paymentStatus: TicketPaymentStatus;
 
   // Rupees received, recorded when the organizer marks the ticket paid

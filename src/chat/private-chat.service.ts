@@ -7,7 +7,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PrivateChat, PrivateChatStatus } from './schemas/private-chat.schema';
-import { PrivateMessage, CallLogStatus } from './schemas/private-message.schema';
+import {
+  PrivateMessage,
+  CallLogStatus,
+} from './schemas/private-message.schema';
 import { MAX_PINNED } from './chat.service';
 import { Hangout } from '../hangouts/schemas/hangout.schema';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -21,7 +24,11 @@ import { LinkPreviewService } from './link-preview.service';
 // ObjectIds too so the query keeps working if that is ever fixed
 function idForms(id: unknown) {
   const text = String(id);
-  return { $in: Types.ObjectId.isValid(text) ? [text, new Types.ObjectId(text)] : [text] };
+  return {
+    $in: Types.ObjectId.isValid(text)
+      ? [text, new Types.ObjectId(text)]
+      : [text],
+  };
 }
 
 @Injectable()
@@ -41,7 +48,7 @@ export class PrivateChatService {
   private isMember(hangout: Hangout, userId: string): boolean {
     return (
       hangout.createdBy.toString() === userId ||
-      hangout.attendees.some(attendeeId => attendeeId.toString() === userId)
+      hangout.attendees.some((attendeeId) => attendeeId.toString() === userId)
     );
   }
 
@@ -60,7 +67,10 @@ export class PrivateChatService {
     if (!chat) {
       throw new NotFoundException('Private chat not found');
     }
-    if (chat.requester.toString() !== userId && chat.recipient.toString() !== userId) {
+    if (
+      chat.requester.toString() !== userId &&
+      chat.recipient.toString() !== userId
+    ) {
       throw new ForbiddenException('You are not part of this private chat');
     }
     return chat;
@@ -68,15 +78,26 @@ export class PrivateChatService {
 
   // Ids of both participants, for real-time notifications
   getParticipantIds(chat: PrivateChat): string[] {
-    const ids = [chat.requester, chat.recipient].map((u: any) => (u._id ?? u).toString());
+    const ids = [chat.requester, chat.recipient].map((u: any) =>
+      (u._id ?? u).toString(),
+    );
     return ids;
   }
 
-  async requestChat(hangoutId: string, requesterId: string, recipientId: string) {
+  async requestChat(
+    hangoutId: string,
+    requesterId: string,
+    recipientId: string,
+  ) {
     if (requesterId === recipientId) {
-      throw new BadRequestException('You cannot start a private chat with yourself');
+      throw new BadRequestException(
+        'You cannot start a private chat with yourself',
+      );
     }
-    if (!Types.ObjectId.isValid(hangoutId) || !Types.ObjectId.isValid(recipientId)) {
+    if (
+      !Types.ObjectId.isValid(hangoutId) ||
+      !Types.ObjectId.isValid(recipientId)
+    ) {
       throw new BadRequestException('Invalid hangout or user id');
     }
 
@@ -85,7 +106,9 @@ export class PrivateChatService {
       throw new NotFoundException('Hangout not found');
     }
     if (!this.isMember(hangout, requesterId)) {
-      throw new ForbiddenException('You must be part of this hangout to request a private chat');
+      throw new ForbiddenException(
+        'You must be part of this hangout to request a private chat',
+      );
     }
     if (!this.isMember(hangout, recipientId)) {
       throw new BadRequestException('That user is not part of this hangout');
@@ -100,7 +123,10 @@ export class PrivateChatService {
     });
 
     if (existing) {
-      if (existing.status === PrivateChatStatus.PENDING && existing.recipient.toString() === requesterId) {
+      if (
+        existing.status === PrivateChatStatus.PENDING &&
+        existing.recipient.toString() === requesterId
+      ) {
         // The other user already asked us - treat this as accepting their request
         existing.status = PrivateChatStatus.ACCEPTED;
         await existing.save();
@@ -153,10 +179,15 @@ export class PrivateChatService {
   }
 
   // Original requester: "<acceptedBy> accepted your chat request"
-  private alertAccepted(chat: PrivateChat, hangout: { _id: any; title: string } | null, acceptedById: string) {
+  private alertAccepted(
+    chat: PrivateChat,
+    hangout: { _id: any; title: string } | null,
+    acceptedById: string,
+  ) {
     const requester: any = chat.requester;
     const recipient: any = chat.recipient;
-    const accepter = recipient._id.toString() === acceptedById ? recipient : requester;
+    const accepter =
+      recipient._id.toString() === acceptedById ? recipient : requester;
     const notifyUser = accepter === recipient ? requester : recipient;
     this.notifications.notify(notifyUser._id.toString(), {
       type: NotificationType.CHAT_ACCEPTED,
@@ -173,19 +204,28 @@ export class PrivateChatService {
     const chat = await this.getChatForParticipant(chatId, userId);
 
     if (chat.recipient.toString() !== userId) {
-      throw new ForbiddenException('Only the recipient can respond to this request');
+      throw new ForbiddenException(
+        'Only the recipient can respond to this request',
+      );
     }
     if (chat.status !== PrivateChatStatus.PENDING) {
-      throw new BadRequestException(`This request has already been ${chat.status}`);
+      throw new BadRequestException(
+        `This request has already been ${chat.status}`,
+      );
     }
 
-    chat.status = accept ? PrivateChatStatus.ACCEPTED : PrivateChatStatus.DECLINED;
+    chat.status = accept
+      ? PrivateChatStatus.ACCEPTED
+      : PrivateChatStatus.DECLINED;
     await chat.save();
     await this.populateChat(chat);
 
     // Declines are quiet on purpose; acceptances are worth an alert
     if (accept) {
-      const hangout = await this.hangoutModel.findById(chat.hangoutId).select('title').lean();
+      const hangout = await this.hangoutModel
+        .findById(chat.hangoutId)
+        .select('title')
+        .lean();
       this.alertAccepted(chat, hangout as any, userId);
     }
     return chat;
@@ -228,7 +268,9 @@ export class PrivateChatService {
       chats.map(async (chat) => ({
         ...chat.toJSON(),
         unread:
-          chat.status === PrivateChatStatus.ACCEPTED ? await this.unreadCount(chat, userId) : 0,
+          chat.status === PrivateChatStatus.ACCEPTED
+            ? await this.unreadCount(chat, userId)
+            : 0,
       })),
     );
   }
@@ -292,7 +334,12 @@ export class PrivateChatService {
     return messages.reverse();
   }
 
-  async sendMessage(chatId: string, userId: string, content?: string, attachment?: unknown) {
+  async sendMessage(
+    chatId: string,
+    userId: string,
+    content?: string,
+    attachment?: unknown,
+  ) {
     const chat = await this.getChatForParticipant(chatId, userId);
     if (chat.status !== PrivateChatStatus.ACCEPTED) {
       throw new ForbiddenException('This private chat has not been accepted');
@@ -305,7 +352,9 @@ export class PrivateChatService {
 
     const attachmentDoc = sanitizeAttachment(attachment);
     if (!attachmentDoc && !(content ?? '').trim()) {
-      throw new BadRequestException('A message needs some text or an attachment');
+      throw new BadRequestException(
+        'A message needs some text or an attachment',
+      );
     }
 
     const message = new this.privateMessageModel({
@@ -324,7 +373,10 @@ export class PrivateChatService {
     await chat.save();
 
     // One unread alert per chat that keeps a count, rather than one per message
-    const recipientId = chat.requester.toString() === userId ? chat.recipient.toString() : chat.requester.toString();
+    const recipientId =
+      chat.requester.toString() === userId
+        ? chat.recipient.toString()
+        : chat.requester.toString();
     const senderName = (message.senderId as any)?.name ?? 'Someone';
     this.notifications.notifyGrouped(recipientId, {
       type: NotificationType.PRIVATE_MESSAGE,
@@ -364,7 +416,12 @@ export class PrivateChatService {
 
   // ---- Pinned messages (either participant; at most MAX_PINNED per chat) ----
 
-  async setPinned(chatId: string, messageId: string, userId: string, pinned: boolean) {
+  async setPinned(
+    chatId: string,
+    messageId: string,
+    userId: string,
+    pinned: boolean,
+  ) {
     const chat = await this.getChatForParticipant(chatId, userId);
     if (chat.status !== PrivateChatStatus.ACCEPTED) {
       throw new ForbiddenException('This private chat has not been accepted');
@@ -386,7 +443,10 @@ export class PrivateChatService {
       const current = await this.privateMessageModel
         .find({ chatId: message.chatId, pinned: true })
         .sort({ pinnedAt: 1 });
-      for (const old of current.slice(0, Math.max(0, current.length - MAX_PINNED + 1))) {
+      for (const old of current.slice(
+        0,
+        Math.max(0, current.length - MAX_PINNED + 1),
+      )) {
         old.pinned = false;
         old.pinnedBy = undefined;
         old.pinnedAt = undefined;
@@ -410,7 +470,13 @@ export class PrivateChatService {
     // Not "message": the response interceptor treats a top-level `message` key as the status text
     return {
       chat,
-      event: { chatId, messageId: String(message._id), pinned: message.pinned, pinnedMessage: message, unpinnedMessageIds },
+      event: {
+        chatId,
+        messageId: String(message._id),
+        pinned: message.pinned,
+        pinnedMessage: message,
+        unpinnedMessageIds,
+      },
     };
   }
 
@@ -426,11 +492,21 @@ export class PrivateChatService {
 
   // ---- Call history: one 'call' message per call, written when it ends (sender = caller) ----
 
-  async addCallLog(chatId: string, callerId: string, call: { callType: 'audio' | 'video'; status: CallLogStatus; durationSeconds?: number }) {
+  async addCallLog(
+    chatId: string,
+    callerId: string,
+    call: {
+      callType: 'audio' | 'video';
+      status: CallLogStatus;
+      durationSeconds?: number;
+    },
+  ) {
     const kind = call.callType === 'video' ? 'video' : 'audio';
     const content =
-      call.status === 'completed' ? `${kind === 'video' ? 'Video' : 'Audio'} call`
-        : call.status === 'declined' ? `Declined ${kind} call`
+      call.status === 'completed'
+        ? `${kind === 'video' ? 'Video' : 'Audio'} call`
+        : call.status === 'declined'
+          ? `Declined ${kind} call`
           : `Missed ${kind} call`;
 
     const message = await this.privateMessageModel.create({
@@ -438,10 +514,17 @@ export class PrivateChatService {
       senderId: callerId,
       content,
       messageType: 'call',
-      call: { callType: kind, status: call.status, durationSeconds: Math.max(0, Math.round(call.durationSeconds ?? 0)) },
+      call: {
+        callType: kind,
+        status: call.status,
+        durationSeconds: Math.max(0, Math.round(call.durationSeconds ?? 0)),
+      },
     });
     await message.populate('senderId', 'name email');
-    await this.privateChatModel.updateOne({ _id: chatId }, { $set: { lastMessageAt: new Date() } });
+    await this.privateChatModel.updateOne(
+      { _id: chatId },
+      { $set: { lastMessageAt: new Date() } },
+    );
     return message;
   }
 }

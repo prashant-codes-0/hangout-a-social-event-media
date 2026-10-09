@@ -45,15 +45,25 @@ export class UploadService {
     const apiSecret = config.get<string>('CLOUDINARY_API_SECRET');
     this.configured = Boolean(cloudName && apiKey && apiSecret);
     if (this.configured) {
-      cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
+      cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+        secure: true,
+      });
     } else {
-      this.logger.warn('CLOUDINARY_* variables are not set - chat file uploads are disabled');
+      this.logger.warn(
+        'CLOUDINARY_* variables are not set - chat file uploads are disabled',
+      );
     }
   }
 
   // Validates the file (type + 2 MB cap; multer already rejects oversized bodies) and
   // stores it under hangout/chat/<userId>/ on Cloudinary.
-  async uploadChatAttachment(file: Express.Multer.File, userId: string): Promise<UploadedAttachment> {
+  async uploadChatAttachment(
+    file: Express.Multer.File,
+    userId: string,
+  ): Promise<UploadedAttachment> {
     if (!file || !file.buffer?.length) {
       throw new BadRequestException('No file was provided');
     }
@@ -88,13 +98,20 @@ export class UploadService {
   async destroy(publicId?: string, mimeType?: string): Promise<void> {
     if (!publicId || !this.configured) return;
     try {
-      await cloudinary.uploader.destroy(publicId, { resource_type: resourceTypeFor(mimeType) });
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: resourceTypeFor(mimeType),
+      });
     } catch (err) {
-      this.logger.warn(`Could not delete Cloudinary asset ${publicId}: ${String(err)}`);
+      this.logger.warn(
+        `Could not delete Cloudinary asset ${publicId}: ${String(err)}`,
+      );
     }
   }
 
-  private toCloudinary(buffer: Buffer, userId: string): Promise<UploadApiResponse> {
+  private toCloudinary(
+    buffer: Buffer,
+    userId: string,
+  ): Promise<UploadApiResponse> {
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
@@ -105,9 +122,13 @@ export class UploadService {
         },
         (err, result) => {
           if (err || !result) {
-            reject(new InternalServerErrorException('The upload could not be stored'));
+            reject(
+              new InternalServerErrorException(
+                'The upload could not be stored',
+              ),
+            );
           } else {
-            resolve(result as UploadApiResponse);
+            resolve(result);
           }
         },
       );

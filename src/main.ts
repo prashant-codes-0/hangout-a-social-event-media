@@ -7,26 +7,24 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Enable CORS
   // app.enableCors();
   app.enableCors({
-    origin: [
-      'http://localhost:4200',
-      'https://hangout-angular.vercel.app',
-    ],
+    origin: ['http://localhost:4200', 'https://hangout-angular.vercel.app'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
-  
-  
+
   // Enable validation
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   // Global response interceptor
   app.useGlobalInterceptors(new ResponseInterceptor());
@@ -36,7 +34,8 @@ async function bootstrap() {
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('🏖️ Hangout App API')
-    .setDescription(`
+    .setDescription(
+      `
       A social event-based platform where users can discover, create, and join hangouts — real-world meetups organized around shared interests, venues, and sponsors.
       
       ## Response Format
@@ -52,7 +51,8 @@ async function bootstrap() {
       \`\`\`
       
       Error responses include an additional \`error\` field and \`success: false\`.
-    `)
+    `,
+    )
     .setVersion('1.0')
     .addBearerAuth(
       {
@@ -75,9 +75,13 @@ async function bootstrap() {
       persistAuthorization: true,
     },
   });
-  
+
   await app.listen(process.env.PORT ?? 3000);
-  console.log(`Hangout App is running on: http://localhost:${process.env.PORT ?? 3000}`);
-  console.log(`Swagger UI is available on: http://localhost:${process.env.PORT ?? 3000}/api`);
+  console.log(
+    `Hangout App is running on: http://localhost:${process.env.PORT ?? 3000}`,
+  );
+  console.log(
+    `Swagger UI is available on: http://localhost:${process.env.PORT ?? 3000}/api`,
+  );
 }
 bootstrap();

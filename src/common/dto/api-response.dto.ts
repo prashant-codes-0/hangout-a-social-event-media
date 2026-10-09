@@ -52,11 +52,19 @@ export class ApiResponseDto<T = any> {
     this.timestamp = new Date().toISOString();
   }
 
-  static success<T>(data: T, message = 'Operation completed successfully', statusCode = 200): ApiResponseDto<T> {
+  static success<T>(
+    data: T,
+    message = 'Operation completed successfully',
+    statusCode = 200,
+  ): ApiResponseDto<T> {
     return new ApiResponseDto(true, statusCode, message, data);
   }
 
-  static error(message: string, statusCode = 500, error?: string): ApiResponseDto {
+  static error(
+    message: string,
+    statusCode = 500,
+    error?: string,
+  ): ApiResponseDto {
     return new ApiResponseDto(false, statusCode, message, undefined, error);
   }
 }

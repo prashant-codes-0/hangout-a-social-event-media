@@ -1,4 +1,7 @@
-import { DEFAULT_DURATION_MINUTES, HangoutStatus } from './schemas/hangout.schema';
+import {
+  DEFAULT_DURATION_MINUTES,
+  HangoutStatus,
+} from './schemas/hangout.schema';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -30,9 +33,10 @@ export function deriveHangoutStatus(
     return currentStatus ?? HangoutStatus.UPCOMING;
   }
 
-  const duration = durationMinutes && durationMinutes > 0
-    ? durationMinutes
-    : DEFAULT_DURATION_MINUTES;
+  const duration =
+    durationMinutes && durationMinutes > 0
+      ? durationMinutes
+      : DEFAULT_DURATION_MINUTES;
   const end = start + duration * MINUTE;
 
   if (now < start) return HangoutStatus.UPCOMING;
@@ -43,9 +47,7 @@ export function deriveHangoutStatus(
 // Hangouts still worth showing in a discovery feed: anything the user can act on
 // or that is happening right now.
 export function isDiscoverable(status: HangoutStatus): boolean {
-  return (
-    status === HangoutStatus.UPCOMING || status === HangoutStatus.ONGOING
-  );
+  return status === HangoutStatus.UPCOMING || status === HangoutStatus.ONGOING;
 }
 
 // "Fri, 25 Jul · 7:00 PM"

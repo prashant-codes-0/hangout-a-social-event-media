@@ -18,16 +18,23 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiParam,
-  ApiQuery
+  ApiQuery,
 } from '@nestjs/swagger';
 import { HangoutsService } from './hangouts.service';
 import type { HangoutFeedFilters } from './hangouts.service';
 import { CheckInService } from './checkin.service';
 import { RatingsService } from './ratings.service';
-import { CreateHangoutDto, UpdateHangoutDto, UpdateHangoutStatusDto } from './dto/hangout.dto';
+import {
+  CreateHangoutDto,
+  UpdateHangoutDto,
+  UpdateHangoutStatusDto,
+} from './dto/hangout.dto';
 import { CheckInCodeDto, CheckInDto, LiveLocationDto } from './dto/checkin.dto';
 import { RateHangoutDto } from './dto/rating.dto';
-import { HangoutResponseDto, JoinRequestResponseDto } from './dto/hangout-response.dto';
+import {
+  HangoutResponseDto,
+  JoinRequestResponseDto,
+} from './dto/hangout-response.dto';
 import { JoinRequestStatus } from './schemas/join-request.schema';
 import { HangoutStatus } from './schemas/hangout.schema';
 import { HangoutAccessGuard } from '../chat/guards/hangout-access.guard';
@@ -46,15 +53,25 @@ export class HangoutsController {
     private readonly hangoutsService: HangoutsService,
     private readonly checkInService: CheckInService,
     private readonly ratingsService: RatingsService,
-  ) { }
+  ) {}
 
   @UseGuards(AuthGuard('jwt'), VerifiedUserGuard)
   @Post()
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Create a new hangout (verified users, admins, and sponsors only)' })
-  @ApiResponse({ status: 201, description: 'Hangout successfully created', type: HangoutResponseDto })
+  @ApiOperation({
+    summary: 'Create a new hangout (verified users, admins, and sponsors only)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Hangout successfully created',
+    type: HangoutResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Only verified users, admins, and sponsors can create hangouts' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Only verified users, admins, and sponsors can create hangouts',
+  })
   @ApiBody({ type: CreateHangoutDto })
   create(@Body() createHangoutDto: CreateHangoutDto, @Request() req) {
     return this.hangoutsService.create(createHangoutDto, req.user.id);
@@ -67,9 +84,17 @@ export class HangoutsController {
     summary:
       'Get public hangouts with optional filters. Finished events are hidden unless includePast=true or an explicit status is given.',
   })
-  @ApiQuery({ name: 'purpose', required: false, description: 'Filter by purpose' })
+  @ApiQuery({
+    name: 'purpose',
+    required: false,
+    description: 'Filter by purpose',
+  })
   @ApiQuery({ name: 'place', required: false, description: 'Filter by place' })
-  @ApiQuery({ name: 'date', required: false, description: 'Filter by date (YYYY-MM-DD)' })
+  @ApiQuery({
+    name: 'date',
+    required: false,
+    description: 'Filter by date (YYYY-MM-DD)',
+  })
   @ApiQuery({
     name: 'status',
     required: false,
@@ -79,31 +104,65 @@ export class HangoutsController {
   @ApiQuery({
     name: 'includePast',
     required: false,
-    description: 'true to include completed and cancelled hangouts, newest first',
+    description:
+      'true to include completed and cancelled hangouts, newest first',
   })
-  @ApiQuery({ name: 'q', required: false, description: 'Search title, description, category, place and tags' })
-  @ApiQuery({ name: 'tags', required: false, description: 'Comma-separated tags; a hangout must have all of them' })
-  @ApiQuery({ name: 'from', required: false, description: 'Starts at or after this time (ISO 8601)' })
-  @ApiQuery({ name: 'to', required: false, description: 'Starts before this time (ISO 8601)' })
-  @ApiQuery({ name: 'lat', required: false, description: 'Near me: latitude (use with lng)' })
-  @ApiQuery({ name: 'lng', required: false, description: 'Near me: longitude (use with lat)' })
-  @ApiQuery({ name: 'radiusKm', required: false, description: 'Near me: search radius in km (default 10, max 500)' })
-  @ApiQuery({ name: 'sort', required: false, enum: ['time', 'distance'], description: 'distance needs lat/lng' })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Search title, description, category, place and tags',
+  })
+  @ApiQuery({
+    name: 'tags',
+    required: false,
+    description: 'Comma-separated tags; a hangout must have all of them',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description: 'Starts at or after this time (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description: 'Starts before this time (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'lat',
+    required: false,
+    description: 'Near me: latitude (use with lng)',
+  })
+  @ApiQuery({
+    name: 'lng',
+    required: false,
+    description: 'Near me: longitude (use with lat)',
+  })
+  @ApiQuery({
+    name: 'radiusKm',
+    required: false,
+    description: 'Near me: search radius in km (default 10, max 500)',
+  })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    enum: ['time', 'distance'],
+    description: 'distance needs lat/lng',
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of hangouts with blast status (and distanceKm when lat/lng are given)',
-    type: [HangoutResponseDto]
+    description:
+      'List of hangouts with blast status (and distanceKm when lat/lng are given)',
+    type: [HangoutResponseDto],
   })
-  findAll(
-    @Query() filters: HangoutFeedFilters,
-    @Request() req?,
-  ) {
+  findAll(@Query() filters: HangoutFeedFilters, @Request() req?) {
     const userId = req?.user?.id;
     return this.hangoutsService.findAll(filters, userId);
   }
 
   @Get('tags/popular')
-  @ApiOperation({ summary: 'Most used tags on public hangouts that are upcoming or live' })
+  @ApiOperation({
+    summary: 'Most used tags on public hangouts that are upcoming or live',
+  })
   getPopularTags() {
     return this.hangoutsService.getPopularTags();
   }
@@ -115,7 +174,7 @@ export class HangoutsController {
   @ApiResponse({
     status: 200,
     description: 'List of hangouts created by current user',
-    type: [HangoutResponseDto]
+    type: [HangoutResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMyHangouts(@Request() req) {
@@ -125,10 +184,14 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('my-hangouts-detailed')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get detailed view of hangouts created by current user with request and attendee information' })
+  @ApiOperation({
+    summary:
+      'Get detailed view of hangouts created by current user with request and attendee information',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Detailed list of hangouts with request and attendee information',
+    description:
+      'Detailed list of hangouts with request and attendee information',
     schema: {
       example: {
         success: true,
@@ -145,7 +208,7 @@ export class HangoutsController {
               totalAttendees: 5,
               pendingRequests: 3,
               availableSpots: 15,
-              isFull: false
+              isFull: false,
             },
             requestDetails: [
               {
@@ -154,8 +217,8 @@ export class HangoutsController {
                 email: 'jane@example.com',
                 role: 'user',
                 verified: true,
-                requestedAt: '2024-12-20T10:00:00Z'
-              }
+                requestedAt: '2024-12-20T10:00:00Z',
+              },
             ],
             attendeeDetails: [
               {
@@ -163,13 +226,13 @@ export class HangoutsController {
                 name: 'John Doe',
                 email: 'john@example.com',
                 role: 'user',
-                verified: true
-              }
-            ]
-          }
-        ]
-      }
-    }
+                verified: true,
+              },
+            ],
+          },
+        ],
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMyHangoutsDetailed(@Request() req) {
@@ -179,11 +242,13 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('joined-hangouts')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get hangouts that the current user has joined (not created)' })
+  @ApiOperation({
+    summary: 'Get hangouts that the current user has joined (not created)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of hangouts the user has joined',
-    type: [HangoutResponseDto]
+    type: [HangoutResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getJoinedHangouts(@Request() req) {
@@ -193,11 +258,14 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('requested-hangouts')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get hangouts that the current user has requested to join (pending requests)' })
+  @ApiOperation({
+    summary:
+      'Get hangouts that the current user has requested to join (pending requests)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of hangouts the user has requested to join',
-    type: [HangoutResponseDto]
+    type: [HangoutResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getRequestedHangouts(@Request() req) {
@@ -207,10 +275,13 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('my-hangout-requests')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get all join requests for hangouts created by the current user' })
+  @ApiOperation({
+    summary: 'Get all join requests for hangouts created by the current user',
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of hangouts created by user with pending join requests and requester details',
+    description:
+      'List of hangouts created by user with pending join requests and requester details',
     schema: {
       example: {
         success: true,
@@ -224,7 +295,7 @@ export class HangoutsController {
             time: '2024-12-25T19:00:00Z',
             capacity: 20,
             attendees: [
-              { _id: 'user1', name: 'John Doe', email: 'john@example.com' }
+              { _id: 'user1', name: 'John Doe', email: 'john@example.com' },
             ],
             pendingRequestsCount: 2,
             requestDetails: [
@@ -234,7 +305,7 @@ export class HangoutsController {
                 email: 'jane@example.com',
                 role: 'user',
                 verified: true,
-                requestedAt: '2024-12-20T10:00:00Z'
+                requestedAt: '2024-12-20T10:00:00Z',
               },
               {
                 userId: 'user3',
@@ -242,13 +313,13 @@ export class HangoutsController {
                 email: 'bob@example.com',
                 role: 'user',
                 verified: false,
-                requestedAt: '2024-12-20T11:00:00Z'
-              }
-            ]
-          }
-        ]
-      }
-    }
+                requestedAt: '2024-12-20T11:00:00Z',
+              },
+            ],
+          },
+        ],
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMyHangoutRequests(@Request() req) {
@@ -258,7 +329,9 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Get('my-requests-count')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get count of pending join requests for current user\'s hangouts' })
+  @ApiOperation({
+    summary: "Get count of pending join requests for current user's hangouts",
+  })
   @ApiResponse({
     status: 200,
     description: 'Summary of pending requests',
@@ -272,17 +345,17 @@ export class HangoutsController {
             {
               hangoutId: '507f1f77bcf86cd799439011',
               hangoutTitle: 'Networking Night',
-              requestCount: 2
+              requestCount: 2,
             },
             {
               hangoutId: '507f1f77bcf86cd799439012',
               hangoutTitle: 'Coffee Meetup',
-              requestCount: 3
-            }
-          ]
-        }
-      }
-    }
+              requestCount: 3,
+            },
+          ],
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMyRequestsCount(@Request() req) {
@@ -293,12 +366,14 @@ export class HangoutsController {
   @Roles(UserRole.ADMIN)
   @Get('by-user/:userId')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get hangouts created by a specific user (admin only)' })
+  @ApiOperation({
+    summary: 'Get hangouts created by a specific user (admin only)',
+  })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiResponse({
     status: 200,
     description: 'List of hangouts created by the specified user',
-    type: [HangoutResponseDto]
+    type: [HangoutResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Admin access required' })
@@ -321,18 +396,31 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'), AdminGuard)
   @Get('admin/all')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get all hangouts including private ones (admin only)' })
-  @ApiQuery({ name: 'purpose', required: false, description: 'Filter by purpose' })
+  @ApiOperation({
+    summary: 'Get all hangouts including private ones (admin only)',
+  })
+  @ApiQuery({
+    name: 'purpose',
+    required: false,
+    description: 'Filter by purpose',
+  })
   @ApiQuery({ name: 'place', required: false, description: 'Filter by place' })
-  @ApiQuery({ name: 'date', required: false, description: 'Filter by date (YYYY-MM-DD)' })
+  @ApiQuery({
+    name: 'date',
+    required: false,
+    description: 'Filter by date (YYYY-MM-DD)',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of all hangouts (public and private)',
-    type: [HangoutResponseDto]
+    type: [HangoutResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Admin access required' })
-  async getAllHangoutsAdmin(@Query() filters: { purpose?: string; place?: string; date?: string }, @Request() req) {
+  async getAllHangoutsAdmin(
+    @Query() filters: { purpose?: string; place?: string; date?: string },
+    @Request() req,
+  ) {
     return this.hangoutsService.findAllAdmin(filters, req.user.id);
   }
 
@@ -340,7 +428,7 @@ export class HangoutsController {
   @Get('status/counts')
   @ApiOperation({
     summary:
-      'Lifecycle counts for public hangouts (and the caller\'s own upcoming/live totals when authenticated)',
+      "Lifecycle counts for public hangouts (and the caller's own upcoming/live totals when authenticated)",
   })
   @ApiResponse({
     status: 200,
@@ -363,7 +451,9 @@ export class HangoutsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get hangout details by ID (shows if you have blasted it)' })
+  @ApiOperation({
+    summary: 'Get hangout details by ID (shows if you have blasted it)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({
     status: 200,
@@ -376,12 +466,12 @@ export class HangoutsController {
           title: 'Networking Night',
           blasts: 5,
           blastedBy: [
-            { _id: 'user1', name: 'John Doe', email: 'john@example.com' }
+            { _id: 'user1', name: 'John Doe', email: 'john@example.com' },
           ],
-          userHasBlasted: true
-        }
-      }
-    }
+          userHasBlasted: true,
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   findOne(@Param('id') id: string, @Request() req?) {
@@ -396,7 +486,11 @@ export class HangoutsController {
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({ status: 200, description: 'Hangout successfully updated' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only update your own hangouts (unless you are an admin)' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'You can only update your own hangouts (unless you are an admin)',
+  })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   @ApiBody({ type: UpdateHangoutDto })
   update(
@@ -405,7 +499,12 @@ export class HangoutsController {
     @Request() req,
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
-    return this.hangoutsService.update(id, updateHangoutDto, req.user.id, isAdmin);
+    return this.hangoutsService.update(
+      id,
+      updateHangoutDto,
+      req.user.id,
+      isAdmin,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -417,10 +516,17 @@ export class HangoutsController {
   })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiBody({ type: UpdateHangoutStatusDto })
-  @ApiResponse({ status: 200, description: 'Status updated', type: HangoutResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Status updated',
+    type: HangoutResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Hangout is already in that state' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only change the status of your own hangouts' })
+  @ApiResponse({
+    status: 403,
+    description: 'You can only change the status of your own hangouts',
+  })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   updateStatus(
     @Param('id') id: string,
@@ -428,7 +534,12 @@ export class HangoutsController {
     @Request() req,
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
-    return this.hangoutsService.setStatus(id, updateHangoutStatusDto, req.user.id, isAdmin);
+    return this.hangoutsService.setStatus(
+      id,
+      updateHangoutStatusDto,
+      req.user.id,
+      isAdmin,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -438,20 +549,32 @@ export class HangoutsController {
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({ status: 200, description: 'Hangout successfully deleted' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only delete your own hangouts (unless you are an admin)' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'You can only delete your own hangouts (unless you are an admin)',
+  })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   remove(@Param('id') id: string, @Request() req) {
     const isAdmin = req.user.role === UserRole.ADMIN;
     return this.hangoutsService.remove(id, req.user.id, isAdmin);
   }
 
-  @UseGuards(AuthGuard('jwt'),VerifiedUserGuard)
+  @UseGuards(AuthGuard('jwt'), VerifiedUserGuard)
   @Post(':id/join')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request to join a hangout' })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
-  @ApiResponse({ status: 201, description: 'Join request successfully created', type: JoinRequestResponseDto })
-  @ApiResponse({ status: 400, description: 'You already have a request for this hangout or hangout is full' })
+  @ApiResponse({
+    status: 201,
+    description: 'Join request successfully created',
+    type: JoinRequestResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'You already have a request for this hangout or hangout is full',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   requestToJoin(@Param('id') id: string, @Request() req) {
@@ -461,7 +584,9 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Patch('requests/:requestId')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Handle join request (organizer or admin) - Legacy endpoint' })
+  @ApiOperation({
+    summary: 'Handle join request (organizer or admin) - Legacy endpoint',
+  })
   @ApiParam({ name: 'requestId', description: 'Join request ID' })
   @ApiBody({
     schema: {
@@ -470,14 +595,21 @@ export class HangoutsController {
         status: {
           type: 'string',
           enum: ['pending', 'approved', 'rejected'],
-          example: 'approved'
-        }
-      }
-    }
+          example: 'approved',
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 200, description: 'Join request successfully handled' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join request successfully handled',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only handle requests for your own hangouts (unless you are an admin)' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'You can only handle requests for your own hangouts (unless you are an admin)',
+  })
   @ApiResponse({ status: 404, description: 'Join request not found' })
   handleJoinRequest(
     @Param('requestId') requestId: string,
@@ -485,13 +617,20 @@ export class HangoutsController {
     @Request() req,
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
-    return this.hangoutsService.handleJoinRequest(requestId, status, req.user.id, isAdmin);
+    return this.hangoutsService.handleJoinRequest(
+      requestId,
+      status,
+      req.user.id,
+      isAdmin,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Patch(':hangoutId/requests/:userId')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Handle join request for a specific user (organizer or admin)' })
+  @ApiOperation({
+    summary: 'Handle join request for a specific user (organizer or admin)',
+  })
   @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
   @ApiParam({ name: 'userId', description: 'User ID who requested to join' })
   @ApiBody({
@@ -501,14 +640,21 @@ export class HangoutsController {
         action: {
           type: 'string',
           enum: ['approve', 'reject'],
-          example: 'approve'
-        }
-      }
-    }
+          example: 'approve',
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 200, description: 'Join request successfully handled' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join request successfully handled',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'You can only handle requests for your own hangouts (unless you are an admin)' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'You can only handle requests for your own hangouts (unless you are an admin)',
+  })
   @ApiResponse({ status: 404, description: 'Hangout or request not found' })
   handleJoinRequestNew(
     @Param('hangoutId') hangoutId: string,
@@ -517,13 +663,22 @@ export class HangoutsController {
     @Request() req,
   ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
-    return this.hangoutsService.handleJoinRequestNew(hangoutId, userId, action, req.user.id, isAdmin);
+    return this.hangoutsService.handleJoinRequestNew(
+      hangoutId,
+      userId,
+      action,
+      req.user.id,
+      isAdmin,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post(':id/blast')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Toggle blast (upvote/downvote) for a hangout - like Reddit upvoting' })
+  @ApiOperation({
+    summary:
+      'Toggle blast (upvote/downvote) for a hangout - like Reddit upvoting',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({
     status: 200,
@@ -535,10 +690,10 @@ export class HangoutsController {
           hangoutId: '507f1f77bcf86cd799439011',
           blasts: 5,
           userBlasted: true,
-          action: 'added'
-        }
-      }
-    }
+          action: 'added',
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
@@ -549,7 +704,10 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Post(':id/leave')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Leave a hangout (removes from attendees and deletes join request)' })
+  @ApiOperation({
+    summary:
+      'Leave a hangout (removes from attendees and deletes join request)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({
     status: 200,
@@ -561,12 +719,15 @@ export class HangoutsController {
           message: 'Successfully left the hangout',
           hangoutId: '507f1f77bcf86cd799439011',
           hangoutTitle: 'Networking Night',
-          remainingAttendees: 4
-        }
-      }
-    }
+          remainingAttendees: 4,
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'You are not an attendee of this hangout' })
+  @ApiResponse({
+    status: 400,
+    description: 'You are not an attendee of this hangout',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   leaveHangout(@Param('id') id: string, @Request() req) {
@@ -576,7 +737,10 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id/cancel-request')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Cancel join request for a hangout (removes from pending requests)' })
+  @ApiOperation({
+    summary:
+      'Cancel join request for a hangout (removes from pending requests)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({
     status: 200,
@@ -589,12 +753,15 @@ export class HangoutsController {
           hangoutId: '507f1f77bcf86cd799439011',
           hangoutTitle: 'Networking Night',
           userId: '507f1f77bcf86cd799439012',
-          action: 'cancelled'
-        }
-      }
-    }
+          action: 'cancelled',
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'You do not have a pending request for this hangout' })
+  @ApiResponse({
+    status: 400,
+    description: 'You do not have a pending request for this hangout',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   cancelJoinRequest(@Param('id') id: string, @Request() req) {
@@ -604,7 +771,10 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'))
   @Delete(':id/leave-or-cancel')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Smart leave/cancel - removes user from hangout (attendee) or cancels join request (pending)' })
+  @ApiOperation({
+    summary:
+      'Smart leave/cancel - removes user from hangout (attendee) or cancels join request (pending)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiResponse({
     status: 200,
@@ -619,12 +789,15 @@ export class HangoutsController {
           userId: '507f1f77bcf86cd799439012',
           action: 'cancelled_request',
           remainingAttendees: 5,
-          pendingRequests: 2
-        }
-      }
-    }
+          pendingRequests: 2,
+        },
+      },
+    },
   })
-  @ApiResponse({ status: 400, description: 'You are not associated with this hangout' })
+  @ApiResponse({
+    status: 400,
+    description: 'You are not associated with this hangout',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Hangout not found' })
   leaveOrCancelHangout(@Param('id') id: string, @Request() req) {
@@ -637,26 +810,49 @@ export class HangoutsController {
   @Post(':id/checkin-code')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Get (or rotate) the check-in code attendees scan at the venue — organizer or admin',
+    summary:
+      'Get (or rotate) the check-in code attendees scan at the venue — organizer or admin',
   })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiBody({ type: CheckInCodeDto, required: false })
   @ApiResponse({ status: 201, description: '{ code, expiresAt }' })
-  @ApiResponse({ status: 403, description: 'Only the hangout organizer can show the check-in code' })
-  checkInCode(@Param('id') id: string, @Body() dto: CheckInCodeDto, @Request() req) {
+  @ApiResponse({
+    status: 403,
+    description: 'Only the hangout organizer can show the check-in code',
+  })
+  checkInCode(
+    @Param('id') id: string,
+    @Body() dto: CheckInCodeDto,
+    @Request() req,
+  ) {
     const isAdmin = req.user.role === UserRole.ADMIN;
-    return this.checkInService.ensureCode(id, req.user.id, dto?.rotate === true, isAdmin);
+    return this.checkInService.ensureCode(
+      id,
+      req.user.id,
+      dto?.rotate === true,
+      isAdmin,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post(':id/checkin')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Check in at the venue with the code, or by GPS proximity (opens 2h before the start)' })
+  @ApiOperation({
+    summary:
+      'Check in at the venue with the code, or by GPS proximity (opens 2h before the start)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiBody({ type: CheckInDto })
   @ApiResponse({ status: 201, description: '{ checkIn, checkedInCount }' })
-  @ApiResponse({ status: 400, description: 'Wrong code, too far from the venue, or outside the check-in window' })
-  @ApiResponse({ status: 403, description: 'You must be an attendee, creator, or admin to check in' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Wrong code, too far from the venue, or outside the check-in window',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'You must be an attendee, creator, or admin to check in',
+  })
   checkIn(@Param('id') id: string, @Body() dto: CheckInDto, @Request() req) {
     return this.checkInService.checkIn(id, req.user.id, dto);
   }
@@ -673,11 +869,21 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post(':id/live-location')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Share your live position with the group while the hangout is on' })
+  @ApiOperation({
+    summary: 'Share your live position with the group while the hangout is on',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiBody({ type: LiveLocationDto })
-  @ApiResponse({ status: 201, description: 'Current shared points: [{ userId, name, lat, lng, updatedAt }]' })
-  shareLiveLocation(@Param('id') id: string, @Body() dto: LiveLocationDto, @Request() req) {
+  @ApiResponse({
+    status: 201,
+    description:
+      'Current shared points: [{ userId, name, lat, lng, updatedAt }]',
+  })
+  shareLiveLocation(
+    @Param('id') id: string,
+    @Body() dto: LiveLocationDto,
+    @Request() req,
+  ) {
     return this.checkInService.share(id, req.user.id, dto);
   }
 
@@ -702,13 +908,26 @@ export class HangoutsController {
   @UseGuards(AuthGuard('jwt'), HangoutAccessGuard)
   @Post(':id/ratings')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Rate the people you met, once the hangout has finished (1-5 each)' })
+  @ApiOperation({
+    summary:
+      'Rate the people you met, once the hangout has finished (1-5 each)',
+  })
   @ApiParam({ name: 'id', description: 'Hangout ID' })
   @ApiBody({ type: RateHangoutDto })
   @ApiResponse({ status: 201, description: '{ saved: number }' })
-  @ApiResponse({ status: 400, description: 'Hangout not finished yet, or an invalid rating list' })
-  @ApiResponse({ status: 403, description: 'Only people who were part of this hangout can rate it' })
-  rateHangout(@Param('id') id: string, @Body() dto: RateHangoutDto, @Request() req) {
+  @ApiResponse({
+    status: 400,
+    description: 'Hangout not finished yet, or an invalid rating list',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Only people who were part of this hangout can rate it',
+  })
+  rateHangout(
+    @Param('id') id: string,
+    @Body() dto: RateHangoutDto,
+    @Request() req,
+  ) {
     return this.ratingsService.rate(id, req.user.id, dto);
   }
 

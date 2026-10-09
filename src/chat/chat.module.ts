@@ -9,7 +9,10 @@ import { Message, MessageSchema } from './schemas/message.schema';
 import { Hangout, HangoutSchema } from '../hangouts/schemas/hangout.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { PrivateChat, PrivateChatSchema } from './schemas/private-chat.schema';
-import { PrivateMessage, PrivateMessageSchema } from './schemas/private-message.schema';
+import {
+  PrivateMessage,
+  PrivateMessageSchema,
+} from './schemas/private-message.schema';
 import { PrivateChatService } from './private-chat.service';
 import { PrivateChatController } from './private-chat.controller';
 import { IceServersService } from './ice-servers.service';
@@ -38,7 +41,15 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
     NotificationsModule,
   ],
-  providers: [ChatService, ChatGateway, PrivateChatService, IceServersService, InboxService, UploadService, LinkPreviewService],
+  providers: [
+    ChatService,
+    ChatGateway,
+    PrivateChatService,
+    IceServersService,
+    InboxService,
+    UploadService,
+    LinkPreviewService,
+  ],
   controllers: [ChatController, PrivateChatController, UploadController],
   exports: [ChatService, UploadService],
 })

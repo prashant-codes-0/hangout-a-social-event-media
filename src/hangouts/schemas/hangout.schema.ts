@@ -21,7 +21,11 @@ export const DEFAULT_DURATION_MINUTES = 120;
 // Repeat cadence for a recurring hangout: the next occurrence is cloned
 // automatically when the current one finishes.
 export type HangoutRecurrenceFreq = 'daily' | 'weekly' | 'monthly';
-export const HANGOUT_RECURRENCE_FREQS: HangoutRecurrenceFreq[] = ['daily', 'weekly', 'monthly'];
+export const HANGOUT_RECURRENCE_FREQS: HangoutRecurrenceFreq[] = [
+  'daily',
+  'weekly',
+  'monthly',
+];
 
 @Schema({ timestamps: true })
 export class Hangout extends Document {

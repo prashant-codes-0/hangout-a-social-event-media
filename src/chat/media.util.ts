@@ -33,7 +33,9 @@ export function isAllowedMimeType(mimeType: string): boolean {
 }
 
 // How the client renders it: images inline, audio as a player, everything else as a file chip
-export function attachmentKindFor(mimeType: string): 'image' | 'file' | 'voice' {
+export function attachmentKindFor(
+  mimeType: string,
+): 'image' | 'file' | 'voice' {
   const mime = (mimeType || '').toLowerCase();
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('audio/')) return 'voice';
@@ -52,7 +54,9 @@ export interface UploadedAttachment {
 // Validates an attachment from the HTTP DTO or a raw socket payload (sockets skip the
 // ValidationPipe, so the shape is re-checked here either way). Throws on a bad shape;
 // returns undefined when the message has no attachment.
-export function sanitizeAttachment(raw: unknown): MessageAttachment | undefined {
+export function sanitizeAttachment(
+  raw: unknown,
+): MessageAttachment | undefined {
   if (raw === null || raw === undefined) return undefined;
   if (typeof raw !== 'object') {
     throw new BadRequestException('Attachment must be an object');
@@ -62,13 +66,19 @@ export function sanitizeAttachment(raw: unknown): MessageAttachment | undefined 
   const url = typeof a.url === 'string' ? a.url.trim() : '';
   const publicId = typeof a.publicId === 'string' ? a.publicId.trim() : '';
   const name = typeof a.name === 'string' ? a.name.trim() : '';
-  const mimeType = typeof a.mimeType === 'string' ? a.mimeType.trim().toLowerCase() : '';
+  const mimeType =
+    typeof a.mimeType === 'string' ? a.mimeType.trim().toLowerCase() : '';
   const size = Number(a.size);
 
   if (!url || !publicId || !name || !mimeType) {
     throw new BadRequestException('Attachment is missing required fields');
   }
-  if (url.length > 500 || publicId.length > 200 || name.length > 120 || mimeType.length > 120) {
+  if (
+    url.length > 500 ||
+    publicId.length > 200 ||
+    name.length > 120 ||
+    mimeType.length > 120
+  ) {
     throw new BadRequestException('Attachment fields are too long');
   }
 
@@ -86,17 +96,23 @@ export function sanitizeAttachment(raw: unknown): MessageAttachment | undefined 
   }
 
   if (!Number.isInteger(size) || size < 1 || size > MAX_ATTACHMENT_BYTES) {
-    throw new BadRequestException('Attachments must be between 1 byte and 2 MB');
+    throw new BadRequestException(
+      'Attachments must be between 1 byte and 2 MB',
+    );
   }
   if (!isAllowedMimeType(mimeType)) {
     throw new BadRequestException('This file type is not supported');
   }
 
   const durationMs =
-    a.durationMs === undefined || a.durationMs === null ? undefined : Number(a.durationMs);
+    a.durationMs === undefined || a.durationMs === null
+      ? undefined
+      : Number(a.durationMs);
   if (
     durationMs !== undefined &&
-    (!Number.isInteger(durationMs) || durationMs < 0 || durationMs > 60 * 60 * 1000)
+    (!Number.isInteger(durationMs) ||
+      durationMs < 0 ||
+      durationMs > 60 * 60 * 1000)
   ) {
     throw new BadRequestException('Attachment duration is not valid');
   }

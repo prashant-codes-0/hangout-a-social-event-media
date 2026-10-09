@@ -636,7 +636,10 @@ export class HangoutsService {
       if (!hangout.attendees.includes(joinRequest.userId)) {
         hangout.attendees.push(joinRequest.userId);
         await hangout.save();
-        await this.tickets.issue(hangout._id as Types.ObjectId, joinRequest.userId);
+        await this.tickets.issue(
+          hangout._id as Types.ObjectId,
+          joinRequest.userId,
+        );
         void this.activity.record(
           String(joinRequest.userId),
           ActivityVerb.GOING,
@@ -1211,7 +1214,9 @@ export class HangoutsService {
         status: { $in: [HangoutStatus.UPCOMING, HangoutStatus.ONGOING] },
         time: { $lte: now },
       })
-      .select('_id title place time durationMinutes attendees status recurrence')
+      .select(
+        '_id title place time durationMinutes attendees status recurrence',
+      )
       .lean()
       .exec();
 
@@ -1307,7 +1312,11 @@ export class HangoutsService {
 
   // One-shot "how was it?" nudge when a hangout finishes; the ratingsNudged
   // flag makes it idempotent no matter which path completed the hangout.
-  private async nudgeRatings(hangoutId: any, title: string, attendees: Types.ObjectId[]) {
+  private async nudgeRatings(
+    hangoutId: any,
+    title: string,
+    attendees: Types.ObjectId[],
+  ) {
     const claimed = await this.hangoutModel.updateOne(
       { _id: hangoutId, ratingsNudged: { $ne: true } },
       { $set: { ratingsNudged: true } },
@@ -1375,7 +1384,10 @@ export class HangoutsService {
   }
 
   // First slot of the series that still lies ahead of now; null if none is left
-  private nextOccurrenceTime(from: Date, freq: 'daily' | 'weekly' | 'monthly'): Date | null {
+  private nextOccurrenceTime(
+    from: Date,
+    freq: 'daily' | 'weekly' | 'monthly',
+  ): Date | null {
     const next = new Date(from);
     const step = () => {
       if (freq === 'daily') next.setDate(next.getDate() + 1);
@@ -1490,7 +1502,12 @@ export class HangoutsService {
           // A revived hangout needs a fresh reminder plan
           remindersSent: [],
         },
-        $unset: { cancelledAt: 1, cancelReason: 1, completedAt: 1, ratingsNudged: 1 },
+        $unset: {
+          cancelledAt: 1,
+          cancelReason: 1,
+          completedAt: 1,
+          ratingsNudged: 1,
+        },
       },
     );
     // Attendees are still listed, so their tickets come back with them

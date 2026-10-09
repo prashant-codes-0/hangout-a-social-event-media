@@ -27,7 +27,12 @@ export const CallLogSchema = SchemaFactory.createForClass(CallLog);
 
 @Schema({ timestamps: true })
 export class PrivateMessage extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'PrivateChat', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'PrivateChat',
+    required: true,
+    index: true,
+  })
   chatId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -63,5 +68,6 @@ export class PrivateMessage extends Document {
   pinnedAt?: Date;
 }
 
-export const PrivateMessageSchema = SchemaFactory.createForClass(PrivateMessage);
+export const PrivateMessageSchema =
+  SchemaFactory.createForClass(PrivateMessage);
 PrivateMessageSchema.index({ chatId: 1, pinned: 1, pinnedAt: 1 });

@@ -49,7 +49,9 @@ export class IceServersService {
       }
     } catch (error) {
       // Fall back to STUN so calls on friendly networks still work
-      this.logger.error(`Could not get TURN credentials: ${(error as Error).message}`);
+      this.logger.error(
+        `Could not get TURN credentials: ${(error as Error).message}`,
+      );
     }
     return {
       iceServers: [DEFAULT_STUN],

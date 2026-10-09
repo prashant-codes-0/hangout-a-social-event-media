@@ -330,6 +330,14 @@ export class TwoFactorService {
   }
 
   /**
+   * Re-authenticate a signed-in user for a sensitive action (e.g. deleting the
+   * account). Accepts an authenticator or recovery code and marks it used.
+   */
+  async verifyForSensitiveAction(userId: string, code: string): Promise<void> {
+    await this.checkCodeOrThrow(userId, code);
+  }
+
+  /**
    * Accepts either an authenticator code or a recovery code and marks it used
    * (each TOTP time step and each recovery code works once). Too many wrong
    * codes in a row lock checks for LOCK_MS.

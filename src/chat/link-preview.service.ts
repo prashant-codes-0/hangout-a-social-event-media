@@ -21,7 +21,8 @@ function isBlockedHost(hostname: string): boolean {
   if (v4) {
     const a = Number(v4[1]);
     const b = Number(v4[2]);
-    if (a === 0 || a === 10 || a === 127 || a === 169 && b === 254) return true;
+    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254))
+      return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
   }
@@ -44,8 +45,14 @@ function decodeEntities(text: string): string {
 function metaContent(html: string, key: string): string | undefined {
   const keyPattern = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
-    new RegExp(`<meta[^>]+(?:property|name)=["']${keyPattern}["'][^>]+content=["']([^"']*)["']`, 'i'),
-    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${keyPattern}["']`, 'i'),
+    new RegExp(
+      `<meta[^>]+(?:property|name)=["']${keyPattern}["'][^>]+content=["']([^"']*)["']`,
+      'i',
+    ),
+    new RegExp(
+      `<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']${keyPattern}["']`,
+      'i',
+    ),
   ];
   for (const pattern of patterns) {
     const match = html.match(pattern);
@@ -73,8 +80,11 @@ function buildPreview(url: URL, html: string): LinkPreview | null {
   const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title =
     metaContent(html, 'og:title') ??
-    (titleTag?.[1] ? decodeEntities(titleTag[1]).replace(/\s+/g, ' ').trim() : undefined);
-  const description = metaContent(html, 'og:description') ?? metaContent(html, 'description');
+    (titleTag?.[1]
+      ? decodeEntities(titleTag[1]).replace(/\s+/g, ' ').trim()
+      : undefined);
+  const description =
+    metaContent(html, 'og:description') ?? metaContent(html, 'description');
   const image = absoluteUrl(url, metaContent(html, 'og:image'));
   const siteName =
     metaContent(html, 'og:site_name') ?? url.hostname.replace(/^www\./, '');

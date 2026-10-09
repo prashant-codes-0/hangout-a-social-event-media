@@ -1,4 +1,18 @@
-import { IsString, IsDateString, IsBoolean, IsOptional, IsNumber, IsInt, Min, Max, ValidateNested, IsIn, IsArray, ArrayMaxSize, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsDateString,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  IsInt,
+  Min,
+  Max,
+  ValidateNested,
+  IsIn,
+  IsArray,
+  ArrayMaxSize,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HangoutLocationDto } from './hangout-location.dto';
@@ -14,7 +28,8 @@ export class CreateHangoutDto {
 
   @ApiProperty({
     description: 'Detailed description of the hangout',
-    example: 'Join us for an amazing networking event where professionals from various industries come together to share ideas, make connections, and have a great time!',
+    example:
+      'Join us for an amazing networking event where professionals from various industries come together to share ideas, make connections, and have a great time!',
   })
   @IsString()
   description: string;
@@ -34,7 +49,8 @@ export class CreateHangoutDto {
   place: string;
 
   @ApiPropertyOptional({
-    description: 'Map location picked from OpenStreetMap: a place/landmark or a from → to route',
+    description:
+      'Map location picked from OpenStreetMap: a place/landmark or a from → to route',
     type: HangoutLocationDto,
   })
   @IsOptional()
@@ -50,7 +66,8 @@ export class CreateHangoutDto {
   time: string;
 
   @ApiPropertyOptional({
-    description: 'How long the hangout runs, in minutes. Used to decide when it finishes.',
+    description:
+      'How long the hangout runs, in minutes. Used to decide when it finishes.',
     example: 120,
     minimum: 15,
     maximum: 1440,
@@ -91,7 +108,8 @@ export class CreateHangoutDto {
   capacity?: number;
 
   @ApiPropertyOptional({
-    description: 'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
+    description:
+      'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
     example: 500,
     minimum: 0,
     default: 0,
@@ -103,7 +121,8 @@ export class CreateHangoutDto {
   price?: number;
 
   @ApiPropertyOptional({
-    description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
+    description:
+      'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
     example: ['hiking', 'weekend'],
     type: [String],
   })
@@ -124,7 +143,8 @@ export class CreateHangoutDto {
   isPublic?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Repeat this hangout: when it finishes, the next occurrence is created automatically',
+    description:
+      'Repeat this hangout: when it finishes, the next occurrence is created automatically',
     enum: ['daily', 'weekly', 'monthly'],
     example: 'weekly',
   })
@@ -144,7 +164,8 @@ export class UpdateHangoutDto {
 
   @ApiPropertyOptional({
     description: 'Detailed description of the hangout',
-    example: 'Updated description with more details about the networking event.',
+    example:
+      'Updated description with more details about the networking event.',
   })
   @IsOptional()
   @IsString()
@@ -185,7 +206,8 @@ export class UpdateHangoutDto {
   time?: string;
 
   @ApiPropertyOptional({
-    description: 'How long the hangout runs, in minutes. Used to decide when it finishes.',
+    description:
+      'How long the hangout runs, in minutes. Used to decide when it finishes.',
     example: 180,
     minimum: 15,
     maximum: 1440,
@@ -207,7 +229,8 @@ export class UpdateHangoutDto {
   capacity?: number;
 
   @ApiPropertyOptional({
-    description: 'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
+    description:
+      'Ticket price in rupees, paid to the organizer at the door. 0 = free.',
     example: 500,
     minimum: 0,
   })
@@ -218,7 +241,8 @@ export class UpdateHangoutDto {
   price?: number;
 
   @ApiPropertyOptional({
-    description: 'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
+    description:
+      'Tags that help people find the hangout, e.g. hiking or board-games (at most 8)',
     example: ['coffee'],
     type: [String],
   })
@@ -251,7 +275,8 @@ export class UpdateHangoutDto {
 // `cancelled` is re-derived from the start time by the scheduler.
 export class UpdateHangoutStatusDto {
   @ApiProperty({
-    description: 'New status. Only `cancelled` (and restoring to `upcoming`) can be set by hand.',
+    description:
+      'New status. Only `cancelled` (and restoring to `upcoming`) can be set by hand.',
     enum: Object.values(HangoutStatus),
     example: HangoutStatus.CANCELLED,
   })

@@ -1,10 +1,25 @@
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TICKET_PAYMENT_METHODS, TicketPaymentStatus } from '../schemas/hangout-ticket.schema';
+import {
+  TICKET_PAYMENT_METHODS,
+  TicketPaymentStatus,
+} from '../schemas/hangout-ticket.schema';
 import type { TicketPaymentMethod } from '../schemas/hangout-ticket.schema';
 
 export class TicketCheckInDto {
-  @ApiProperty({ description: 'The code on the ticket (from its QR, or typed)', example: 'K7MP-Q2XA' })
+  @ApiProperty({
+    description: 'The code on the ticket (from its QR, or typed)',
+    example: 'K7MP-Q2XA',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(32)
@@ -27,7 +42,10 @@ export class UpdateTicketPaymentDto {
   @IsIn(SETTABLE_PAYMENT_STATUSES)
   status: (typeof SETTABLE_PAYMENT_STATUSES)[number];
 
-  @ApiPropertyOptional({ description: 'How it was paid', enum: TICKET_PAYMENT_METHODS })
+  @ApiPropertyOptional({
+    description: 'How it was paid',
+    enum: TICKET_PAYMENT_METHODS,
+  })
   @IsOptional()
   @IsIn(TICKET_PAYMENT_METHODS)
   method?: TicketPaymentMethod;
