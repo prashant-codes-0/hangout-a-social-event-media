@@ -130,6 +130,29 @@ export class User extends Document {
   // Badges earned (rules live in RatingsService.recomputeReputation)
   @Prop({ type: [UserBadgeSchema], default: [] })
   badges: UserBadge[];
+
+  // ---- Account deletion (grace period) ----
+  // The account is deactivated immediately but only purged after the grace
+  // period, so a mistaken deletion can be undone from the emailed link.
+
+  /** When the user asked to delete their account. */
+  @Prop()
+  deletionRequestedAt?: Date;
+
+  /** When the account is permanently purged (requestedAt + grace period). */
+  @Prop({ index: true, sparse: true })
+  deletionScheduledFor?: Date;
+
+  /** SHA-256 digest of the one-time token that cancels a pending deletion. */
+  @Prop()
+  deletionCancelToken?: string;
+
+  @Prop()
+  deletionCancelExpires?: Date;
+
+  /** Set when the purge has begun, so a pending purge runs at most once. */
+  @Prop()
+  purgeStartedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

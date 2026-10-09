@@ -1,4 +1,21 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsMongoId, MaxLength, IsArray, ArrayMaxSize, ArrayMinSize, MinLength, ValidateNested, IsInt, Min, Max, IsUrl, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsMongoId,
+  MaxLength,
+  IsArray,
+  ArrayMaxSize,
+  ArrayMinSize,
+  MinLength,
+  ValidateNested,
+  IsInt,
+  Min,
+  Max,
+  IsUrl,
+  IsIn,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 const MAX_MENTIONS = 20;
@@ -10,14 +27,16 @@ import { MAX_ATTACHMENT_BYTES } from '../media.util';
 export class AttachmentDto {
   @ApiProperty({
     description: 'Public URL of the stored file (Cloudinary)',
-    example: 'https://res.cloudinary.com/demo/image/upload/v1/hangout/chat/abc/photo.png',
+    example:
+      'https://res.cloudinary.com/demo/image/upload/v1/hangout/chat/abc/photo.png',
   })
   @IsUrl({ require_protocol: true, protocols: ['https'] })
   @MaxLength(500)
   url: string;
 
   @ApiProperty({
-    description: 'Cloudinary public id, so the file can be deleted with its message',
+    description:
+      'Cloudinary public id, so the file can be deleted with its message',
     example: 'hangout/chat/507f1f77bcf86cd799439011/xyz',
   })
   @IsString()
@@ -25,7 +44,10 @@ export class AttachmentDto {
   @MaxLength(200)
   publicId: string;
 
-  @ApiProperty({ description: 'Original file name', example: 'beach-photo.png' })
+  @ApiProperty({
+    description: 'Original file name',
+    example: 'beach-photo.png',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
@@ -37,14 +59,21 @@ export class AttachmentDto {
   @MaxLength(120)
   mimeType: string;
 
-  @ApiProperty({ description: 'File size in bytes (max 2 MB)', example: 102400 })
+  @ApiProperty({
+    description: 'File size in bytes (max 2 MB)',
+    example: 102400,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(MAX_ATTACHMENT_BYTES)
   size: number;
 
-  @ApiProperty({ description: 'Voice note length in milliseconds', example: 4200, required: false })
+  @ApiProperty({
+    description: 'Voice note length in milliseconds',
+    example: 4200,
+    required: false,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -73,7 +102,8 @@ export class SendMessageDto {
   hangoutId: string;
 
   @ApiProperty({
-    description: 'Message content (text along with, or instead of, an attachment)',
+    description:
+      'Message content (text along with, or instead of, an attachment)',
     example: 'Hey everyone! Looking forward to this hangout!',
     required: false,
   })
@@ -83,7 +113,8 @@ export class SendMessageDto {
   content?: string;
 
   @ApiProperty({
-    description: 'Type of message (the attachment kind overrides it when one is sent)',
+    description:
+      'Type of message (the attachment kind overrides it when one is sent)',
     enum: ['text', 'image', 'system', 'poll', 'file', 'voice'],
     example: 'text',
     required: false,
@@ -93,7 +124,8 @@ export class SendMessageDto {
   messageType?: string;
 
   @ApiProperty({
-    description: 'File/image/voice note previously uploaded via POST /upload (max 2 MB)',
+    description:
+      'File/image/voice note previously uploaded via POST /upload (max 2 MB)',
     type: AttachmentDto,
     required: false,
   })
@@ -112,7 +144,8 @@ export class SendMessageDto {
   replyToId?: string;
 
   @ApiProperty({
-    description: 'Ids of members tagged with @Name in the text (each gets an alert)',
+    description:
+      'Ids of members tagged with @Name in the text (each gets an alert)',
     type: [String],
     required: false,
   })
@@ -132,7 +165,11 @@ export class ReactDto {
 }
 
 export class MarkReadDto {
-  @ApiProperty({ description: 'Everything in the hangout up to and including this message is marked read', example: '507f1f77bcf86cd799439011' })
+  @ApiProperty({
+    description:
+      'Everything in the hangout up to and including this message is marked read',
+    example: '507f1f77bcf86cd799439011',
+  })
   @IsMongoId()
   upToMessageId: string;
 }
@@ -147,7 +184,8 @@ export class EditMessageDto {
   content: string;
 
   @ApiProperty({
-    description: 'Ids of members tagged in the new text; newly tagged members get an alert',
+    description:
+      'Ids of members tagged in the new text; newly tagged members get an alert',
     type: [String],
     required: false,
   })
@@ -159,7 +197,10 @@ export class EditMessageDto {
 }
 
 export class PollOptionDto {
-  @ApiProperty({ description: 'Choice shown to voters', example: 'Saturday 6 PM' })
+  @ApiProperty({
+    description: 'Choice shown to voters',
+    example: 'Saturday 6 PM',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
@@ -178,7 +219,10 @@ export class PollOptionDto {
 }
 
 export class CreatePollDto {
-  @ApiProperty({ description: 'Poll question shown in chat', example: 'Which time works for everyone?' })
+  @ApiProperty({
+    description: 'Poll question shown in chat',
+    example: 'Which time works for everyone?',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(200)
@@ -214,7 +258,10 @@ export class CreatePollDto {
 }
 
 export class VotePollDto {
-  @ApiProperty({ description: 'The option being voted for', example: '507f1f77bcf86cd799439055' })
+  @ApiProperty({
+    description: 'The option being voted for',
+    example: '507f1f77bcf86cd799439055',
+  })
   @IsMongoId()
   optionId: string;
 }
@@ -230,8 +277,8 @@ export class MessageResponseDto {
     example: {
       _id: '507f1f77bcf86cd799439013',
       name: 'John Doe',
-      email: 'john@example.com'
-    }
+      email: 'john@example.com',
+    },
   })
   userId: object;
 

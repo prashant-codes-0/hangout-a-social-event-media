@@ -1,8 +1,23 @@
-import { Controller, Post, Request, UploadedFile, UseFilters, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Request,
+  UploadedFile,
+  UseFilters,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UploadService } from './upload.service';
 import { MulterExceptionFilter } from './multer-exception.filter';
 import { MAX_ATTACHMENT_BYTES } from './media.util';
@@ -35,7 +50,10 @@ export class UploadController {
     },
   })
   @ApiResponse({ status: 201, description: 'Attachment stored on Cloudinary' })
-  @ApiResponse({ status: 400, description: 'No file, or file larger than 2 MB' })
+  @ApiResponse({
+    status: 400,
+    description: 'No file, or file larger than 2 MB',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 415, description: 'Unsupported file type' })
   @UseInterceptors(

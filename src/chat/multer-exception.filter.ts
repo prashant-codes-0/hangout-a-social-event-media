@@ -13,8 +13,12 @@ export class MulterExceptionFilter implements ExceptionFilter {
     if (typeof code === 'string' && code.startsWith('LIMIT_')) {
       const response = host.switchToHttp().getResponse<Response>();
       const message =
-        code === 'LIMIT_FILE_SIZE' ? 'Files must be 2 MB or smaller' : `Upload failed (${code})`;
-      response.status(400).json(ApiResponseDto.error(message, 400, 'Bad Request'));
+        code === 'LIMIT_FILE_SIZE'
+          ? 'Files must be 2 MB or smaller'
+          : `Upload failed (${code})`;
+      response
+        .status(400)
+        .json(ApiResponseDto.error(message, 400, 'Bad Request'));
       return;
     }
     new HttpExceptionFilter().catch(exception, host);

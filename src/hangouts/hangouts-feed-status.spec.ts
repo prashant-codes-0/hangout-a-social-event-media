@@ -22,7 +22,7 @@ function createService(docs: any[]) {
     countDocuments: jest.fn().mockResolvedValue(0),
   };
   const service = new HangoutsService(
-    hangoutModel as any,
+    hangoutModel,
     { findByIdAndUpdate: jest.fn(), find: jest.fn() } as any,
     {} as any,
     {} as any,
@@ -35,7 +35,11 @@ function createService(docs: any[]) {
 
 function createDoc(overrides: Record<string, any> = {}) {
   return {
-    toObject: () => ({ _id: 'hangout1', status: HangoutStatus.UPCOMING, ...overrides }),
+    toObject: () => ({
+      _id: 'hangout1',
+      status: HangoutStatus.UPCOMING,
+      ...overrides,
+    }),
     blastedBy: [],
     requestedBy: [],
     // attendees come back as raw ObjectIds because the feed does not populate them
@@ -56,7 +60,9 @@ describe('HangoutsService.findAll user status flags', () => {
 
   it('handles populated attendee documents too', async () => {
     const { service } = createService([
-      createDoc({ attendees: [{ _id: new Types.ObjectId(USER_ID), name: 'Test' }] }),
+      createDoc({
+        attendees: [{ _id: new Types.ObjectId(USER_ID), name: 'Test' }],
+      }),
     ]);
 
     const [result] = await service.findAll({}, USER_ID);

@@ -14,8 +14,8 @@ export class SuccessResponseExample {
     example: {
       id: '507f1f77bcf86cd799439011',
       name: 'John Doe',
-      email: 'john@example.com'
-    }
+      email: 'john@example.com',
+    },
   })
   data: any;
 

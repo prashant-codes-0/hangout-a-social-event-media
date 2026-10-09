@@ -23,7 +23,8 @@ export class HangoutCheckIn extends Document {
   updatedAt?: Date;
 }
 
-export const HangoutCheckInSchema = SchemaFactory.createForClass(HangoutCheckIn);
+export const HangoutCheckInSchema =
+  SchemaFactory.createForClass(HangoutCheckIn);
 // One check-in per person per hangout (checked in again = same row, updated)
 HangoutCheckInSchema.index({ hangoutId: 1, userId: 1 }, { unique: true });
 HangoutCheckInSchema.index({ hangoutId: 1, createdAt: 1 });

@@ -20,5 +20,8 @@ export class HangoutRating extends Document {
 export const HangoutRatingSchema = SchemaFactory.createForClass(HangoutRating);
 
 // One score per person per hangout; also powers "who can I rate?" lookups
-HangoutRatingSchema.index({ hangoutId: 1, raterId: 1, ratedId: 1 }, { unique: true });
+HangoutRatingSchema.index(
+  { hangoutId: 1, raterId: 1, ratedId: 1 },
+  { unique: true },
+);
 HangoutRatingSchema.index({ ratedId: 1 });

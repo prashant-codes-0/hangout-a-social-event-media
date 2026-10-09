@@ -16,11 +16,13 @@ import { SignUpDto, SignInDto } from './dto/auth.dto';
 import { UpdateSettingsDto, SettingsResponse } from './dto/settings.dto';
 import { EmailService } from '../common/services/email.service';
 import { TwoFactorService } from './two-factor/two-factor.service';
+import { DELETED_USER_EMAIL } from './account/account.service';
 
 /** Password reset links live this long, and each link works exactly once. */
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 @Injectable()
 export class AuthService {
@@ -35,6 +37,11 @@ export class AuthService {
 
   async signUp(signUpDto: SignUpDto) {
     const { name, email, password } = signUpDto;
+
+    // Reserve the shared "Deleted user" placeholder account.
+    if (email.trim().toLowerCase() === DELETED_USER_EMAIL) {
+      throw new ConflictException('User with this email already exists');
+    }
 
     // Check if user already exists
     const existingUser = await this.userModel.findOne({ email });
@@ -86,7 +93,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    this.assertNotScheduledForDeletion(user);
     return this.completeSignIn(user);
+  }
+
+  /**
+   * A pending-deletion account is deactivated. The only way back is the
+   * cancellation link emailed when the deletion was requested.
+   */
+  private assertNotScheduledForDeletion(user: User | null) {
+    if (user?.deletionScheduledFor) {
+      throw new UnauthorizedException(
+        'This account is scheduled for deletion. Check your email to cancel the deletion.',
+      );
+    }
   }
 
   /** Second sign-in step when 2FA is on: swaps the challenge token + code for a session. */
@@ -99,6 +119,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid sign-in token.');
     }
+    this.assertNotScheduledForDeletion(user);
     return this.issueTokenForUser(user);
   }
 
@@ -112,6 +133,7 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid sign-in token.');
     }
+    this.assertNotScheduledForDeletion(user);
     return this.issueTokenForUser(user);
   }
 
@@ -168,7 +190,9 @@ export class AuthService {
     name?: string | null;
   }) {
     const { provider, providerId, name } = profile;
-    const email = profile.emailVerified ? profile.email?.trim().toLowerCase() || null : null;
+    const email = profile.emailVerified
+      ? profile.email?.trim().toLowerCase() || null
+      : null;
     const providerField = provider === 'google' ? 'googleId' : 'facebookId';
 
     // The account already linked to this provider id wins (the person may have
@@ -197,7 +221,9 @@ export class AuthService {
         // Two first-time logins can race; losing one just means the email
         // already exists, so fall back to matching that account.
         if ((error as { code?: number }).code === 11000) {
-          user = await this.userModel.findOne({ email: new RegExp(`^${escapeRegExp(email)}$`, 'i') });
+          user = await this.userModel.findOne({
+            email: new RegExp(`^${escapeRegExp(email)}$`, 'i'),
+          });
         } else {
           throw error;
         }
@@ -227,6 +253,7 @@ export class AuthService {
       await user.save();
     }
 
+    this.assertNotScheduledForDeletion(user);
     return this.completeSignIn(user);
   }
 

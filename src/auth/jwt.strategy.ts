@@ -17,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: { sub: string; purpose?: string }) {
     // Purpose tokens (e.g. the 2FA sign-in challenge) share the signing key but
     // are not sessions: they only unlock their own endpoint.
     if (payload?.purpose) {
@@ -26,6 +26,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.authService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException();
+    }
+    // Accounts pending deletion are deactivated: every session is refused
+    // until the deletion is cancelled from the emailed link.
+    if (user.deletionScheduledFor) {
+      throw new UnauthorizedException(
+        'This account is scheduled for deletion. Check your email to cancel it.',
+      );
     }
     return user;
   }

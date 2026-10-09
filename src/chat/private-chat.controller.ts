@@ -41,14 +41,27 @@ export class PrivateChatController {
   ) {}
 
   @Post('request')
-  @ApiOperation({ summary: 'Request a private chat with another member of a hangout' })
+  @ApiOperation({
+    summary: 'Request a private chat with another member of a hangout',
+  })
   @ApiBody({ type: RequestPrivateChatDto })
-  @ApiResponse({ status: 201, description: 'Private chat requested (or existing chat returned)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Private chat requested (or existing chat returned)',
+  })
   @ApiResponse({ status: 400, description: 'Invalid recipient' })
   @ApiResponse({ status: 403, description: 'You must be part of the hangout' })
   async requestChat(@Body() dto: RequestPrivateChatDto, @Request() req) {
-    const chat = await this.privateChatService.requestChat(dto.hangoutId, req.user.id, dto.recipientId);
-    this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'privateChatUpdated', chat);
+    const chat = await this.privateChatService.requestChat(
+      dto.hangoutId,
+      req.user.id,
+      dto.recipientId,
+    );
+    this.chatGateway.emitToUsers(
+      this.privateChatService.getParticipantIds(chat),
+      'privateChatUpdated',
+      chat,
+    );
     return chat;
   }
 
@@ -58,50 +71,92 @@ export class PrivateChatController {
   @ApiBody({ type: RespondPrivateChatDto })
   @ApiResponse({ status: 200, description: 'Request answered' })
   @ApiResponse({ status: 403, description: 'Only the recipient can respond' })
-  async respond(@Param('chatId') chatId: string, @Body() dto: RespondPrivateChatDto, @Request() req) {
-    const chat = await this.privateChatService.respondToRequest(chatId, req.user.id, dto.accept);
-    this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'privateChatUpdated', chat);
+  async respond(
+    @Param('chatId') chatId: string,
+    @Body() dto: RespondPrivateChatDto,
+    @Request() req,
+  ) {
+    const chat = await this.privateChatService.respondToRequest(
+      chatId,
+      req.user.id,
+      dto.accept,
+    );
+    this.chatGateway.emitToUsers(
+      this.privateChatService.getParticipantIds(chat),
+      'privateChatUpdated',
+      chat,
+    );
     return chat;
   }
 
   @Get('ice-servers')
-  @ApiOperation({ summary: 'WebRTC STUN/TURN servers (with short-lived TURN credentials) for private-chat calls' })
-  @ApiResponse({ status: 200, description: '{ iceServers, ttlSeconds, relay }' })
+  @ApiOperation({
+    summary:
+      'WebRTC STUN/TURN servers (with short-lived TURN credentials) for private-chat calls',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '{ iceServers, ttlSeconds, relay }',
+  })
   getIceServers(@Request() req) {
     return this.iceServersService.getIceServers(req.user.id);
   }
 
   @Get('presence')
-  @ApiOperation({ summary: 'Online/offline status of users (live updates arrive via the presenceChanged socket event)' })
-  @ApiQuery({ name: 'userIds', required: true, description: 'Comma-separated user IDs (max 200)' })
-  @ApiResponse({ status: 200, description: 'Presence per user: { userId, online, lastSeen }' })
+  @ApiOperation({
+    summary:
+      'Online/offline status of users (live updates arrive via the presenceChanged socket event)',
+  })
+  @ApiQuery({
+    name: 'userIds',
+    required: true,
+    description: 'Comma-separated user IDs (max 200)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Presence per user: { userId, online, lastSeen }',
+  })
   getPresence(@Query('userIds') userIds?: string) {
     const ids = (userIds || '')
       .split(',')
-      .map(id => id.trim())
+      .map((id) => id.trim())
       .filter(Boolean)
       .slice(0, 200);
     return this.chatGateway.getPresence(ids);
   }
 
   @Get('hangout/:hangoutId')
-  @ApiOperation({ summary: 'List your private chats and requests within a hangout' })
+  @ApiOperation({
+    summary: 'List your private chats and requests within a hangout',
+  })
   @ApiParam({ name: 'hangoutId', description: 'Hangout ID' })
   @ApiResponse({ status: 200, description: 'Private chats retrieved' })
-  async getChatsForHangout(@Param('hangoutId') hangoutId: string, @Request() req) {
+  async getChatsForHangout(
+    @Param('hangoutId') hangoutId: string,
+    @Request() req,
+  ) {
     return this.privateChatService.getChatsForHangout(hangoutId, req.user.id);
   }
 
   @Get(':chatId/messages/search')
-  @ApiOperation({ summary: 'Search a private chat (at least 2 characters), newest first' })
+  @ApiOperation({
+    summary: 'Search a private chat (at least 2 characters), newest first',
+  })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
   @ApiQuery({ name: 'q', required: true })
-  searchMessages(@Param('chatId') chatId: string, @Query('q') q: string, @Request() req) {
+  searchMessages(
+    @Param('chatId') chatId: string,
+    @Query('q') q: string,
+    @Request() req,
+  ) {
     return this.privateChatService.searchMessages(chatId, req.user.id, q);
   }
 
   @Post(':chatId/read')
-  @ApiOperation({ summary: "Mark everything in this private chat as read (clears its unread count)" })
+  @ApiOperation({
+    summary:
+      'Mark everything in this private chat as read (clears its unread count)',
+  })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
   markRead(@Param('chatId') chatId: string, @Request() req) {
     return this.privateChatService.markRead(chatId, req.user.id);
@@ -110,10 +165,24 @@ export class PrivateChatController {
   @Get(':chatId/messages')
   @ApiOperation({ summary: 'Get messages of an accepted private chat' })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of messages (default: 50)' })
-  @ApiQuery({ name: 'skip', required: false, description: 'Messages to skip (default: 0)' })
-  @ApiResponse({ status: 200, description: 'Messages retrieved (oldest first)' })
-  @ApiResponse({ status: 403, description: 'Not a participant or chat not accepted' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of messages (default: 50)',
+  })
+  @ApiQuery({
+    name: 'skip',
+    required: false,
+    description: 'Messages to skip (default: 0)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Messages retrieved (oldest first)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Not a participant or chat not accepted',
+  })
   async getMessages(
     @Param('chatId') chatId: string,
     @Request() req,
@@ -129,11 +198,20 @@ export class PrivateChatController {
   }
 
   @Patch(':chatId/messages/:messageId/pin')
-  @ApiOperation({ summary: 'Pin or unpin a private message (either participant; max 3, oldest is replaced)' })
+  @ApiOperation({
+    summary:
+      'Pin or unpin a private message (either participant; max 3, oldest is replaced)',
+  })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
   @ApiParam({ name: 'messageId', description: 'Message ID' })
-  @ApiBody({ schema: { properties: { pinned: { type: 'boolean', example: true } } } })
-  @ApiResponse({ status: 200, description: '{ chatId, messageId, pinned, pinnedMessage, unpinnedMessageIds }' })
+  @ApiBody({
+    schema: { properties: { pinned: { type: 'boolean', example: true } } },
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      '{ chatId, messageId, pinned, pinnedMessage, unpinnedMessageIds }',
+  })
   async pinMessage(
     @Param('chatId') chatId: string,
     @Param('messageId') messageId: string,
@@ -143,13 +221,24 @@ export class PrivateChatController {
     if (typeof pinned !== 'boolean') {
       throw new BadRequestException('pinned must be true or false');
     }
-    const { chat, event } = await this.privateChatService.setPinned(chatId, messageId, req.user.id, pinned);
-    this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'privateMessagePinned', event);
+    const { chat, event } = await this.privateChatService.setPinned(
+      chatId,
+      messageId,
+      req.user.id,
+      pinned,
+    );
+    this.chatGateway.emitToUsers(
+      this.privateChatService.getParticipantIds(chat),
+      'privateMessagePinned',
+      event,
+    );
     return event;
   }
 
   @Get(':chatId/pinned')
-  @ApiOperation({ summary: 'Pinned messages of a private chat, newest pin first' })
+  @ApiOperation({
+    summary: 'Pinned messages of a private chat, newest pin first',
+  })
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
   async getPinned(@Param('chatId') chatId: string, @Request() req) {
     return this.privateChatService.getPinned(chatId, req.user.id);
@@ -160,10 +249,26 @@ export class PrivateChatController {
   @ApiParam({ name: 'chatId', description: 'Private chat ID' })
   @ApiBody({ type: SendPrivateMessageDto })
   @ApiResponse({ status: 201, description: 'Message sent' })
-  @ApiResponse({ status: 403, description: 'Not a participant or chat not accepted' })
-  async sendMessage(@Param('chatId') chatId: string, @Body() dto: SendPrivateMessageDto, @Request() req) {
-    const { chat, message } = await this.privateChatService.sendMessage(chatId, req.user.id, dto.content, dto.attachment);
-    this.chatGateway.emitToUsers(this.privateChatService.getParticipantIds(chat), 'newPrivateMessage', message);
+  @ApiResponse({
+    status: 403,
+    description: 'Not a participant or chat not accepted',
+  })
+  async sendMessage(
+    @Param('chatId') chatId: string,
+    @Body() dto: SendPrivateMessageDto,
+    @Request() req,
+  ) {
+    const { chat, message } = await this.privateChatService.sendMessage(
+      chatId,
+      req.user.id,
+      dto.content,
+      dto.attachment,
+    );
+    this.chatGateway.emitToUsers(
+      this.privateChatService.getParticipantIds(chat),
+      'newPrivateMessage',
+      message,
+    );
     return message;
   }
 }

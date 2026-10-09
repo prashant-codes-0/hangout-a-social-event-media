@@ -49,7 +49,8 @@ export class MessageAttachment {
   durationMs?: number;
 }
 
-export const MessageAttachmentSchema = SchemaFactory.createForClass(MessageAttachment);
+export const MessageAttachmentSchema =
+  SchemaFactory.createForClass(MessageAttachment);
 
 // Link metadata scraped from the first URL in a message; filled in right after
 // sending and pushed to clients via the usual 'messageEdited' event.
@@ -95,7 +96,8 @@ export class MessageVersion {
   writtenAt: Date;
 }
 
-export const MessageVersionSchema = SchemaFactory.createForClass(MessageVersion);
+export const MessageVersionSchema =
+  SchemaFactory.createForClass(MessageVersion);
 
 // One choice in a poll. `value` holds the machine-readable pick for polls that
 // can update the hangout: an ISO date/time for "which time?" or the place text.
@@ -109,7 +111,10 @@ export class PollOption {
   @Prop()
   value?: string;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   votes: Types.ObjectId[];
 }
 
@@ -156,7 +161,10 @@ export class Message extends Document {
   @Prop({ type: String, default: '' })
   content: string;
 
-  @Prop({ default: 'text', enum: ['text', 'image', 'system', 'poll', 'file', 'voice'] })
+  @Prop({
+    default: 'text',
+    enum: ['text', 'image', 'system', 'poll', 'file', 'voice'],
+  })
   messageType: string;
 
   // Image, file, or voice note stored on Cloudinary (messageType mirrors its kind)
@@ -184,7 +192,11 @@ export class Message extends Document {
   pinnedAt?: Date;
 
   // emoji -> ids of users who reacted with it (keys are removed when their list empties)
-  @Prop({ type: Map, of: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: {} })
+  @Prop({
+    type: Map,
+    of: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: {},
+  })
   reactions: Map<string, Types.ObjectId[]>;
 
   @Prop({ type: ReplyPreviewSchema })
@@ -195,7 +207,10 @@ export class Message extends Document {
   readBy: ReadReceipt[];
 
   // Members tagged with @Name (validated: members of the hangout whose @Name is in the text)
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
+    default: [],
+  })
   mentions: Types.ObjectId[];
 
   // Earlier versions, oldest first (last 20). Loaded only on request, so lists stay small.

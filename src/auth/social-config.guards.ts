@@ -82,7 +82,10 @@ function socialErrorMessage(
   }
   if (err instanceof HttpException) return err.message;
   const infoMessage = (info as { message?: string } | undefined)?.message;
-  if (infoMessage && !/^Unable to verify authorization request state/i.test(infoMessage)) {
+  if (
+    infoMessage &&
+    !/^Unable to verify authorization request state/i.test(infoMessage)
+  ) {
     return infoMessage;
   }
   if (infoMessage) {
@@ -92,10 +95,12 @@ function socialErrorMessage(
 }
 
 /** Callback guard for Google: see makeSocialCallbackGuard. */
-export const GoogleCallbackGuard: Type<CanActivate> = makeSocialCallbackGuard('google');
+export const GoogleCallbackGuard: Type<CanActivate> =
+  makeSocialCallbackGuard('google');
 
 /** Callback guard for Facebook: see makeSocialCallbackGuard. */
-export const FacebookCallbackGuard: Type<CanActivate> = makeSocialCallbackGuard('facebook');
+export const FacebookCallbackGuard: Type<CanActivate> =
+  makeSocialCallbackGuard('facebook');
 
 /** Runs before AuthGuard('google') so an unconfigured Google login returns a clear 503 instead of a broken redirect. */
 export const GoogleEnabledGuard: Type<CanActivate> =

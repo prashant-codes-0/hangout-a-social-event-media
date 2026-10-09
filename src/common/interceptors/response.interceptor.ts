@@ -9,10 +9,15 @@ import { map } from 'rxjs/operators';
 import { ApiResponseDto } from '../dto/api-response.dto';
 
 @Injectable()
-export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponseDto<T>> {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<ApiResponseDto<T>> {
+export class ResponseInterceptor<T>
+  implements NestInterceptor<T, ApiResponseDto<T>>
+{
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<ApiResponseDto<T>> {
     const response = context.switchToHttp().getResponse();
-    
+
     return next.handle().pipe(
       map((data) => {
         const statusCode = response.statusCode;
@@ -21,7 +26,7 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponseDto
         // Customize messages based on HTTP method and status code
         const request = context.switchToHttp().getRequest();
         const method = request.method;
-        
+
         switch (method) {
           case 'POST':
             if (statusCode === 201) {

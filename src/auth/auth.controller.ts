@@ -458,11 +458,16 @@ export class AuthController {
 
   @Get('social/providers')
   @ApiOperation({
-    summary: 'Which social sign-in providers are configured (the app hides the others)',
+    summary:
+      'Which social sign-in providers are configured (the app hides the others)',
   })
-  @ApiResponse({ status: 200, description: '{ google: boolean, facebook: boolean }' })
+  @ApiResponse({
+    status: 200,
+    description: '{ google: boolean, facebook: boolean }',
+  })
   socialProviders() {
-    const has = (...keys: string[]) => keys.every((k) => !!this.configService.get<string>(k));
+    const has = (...keys: string[]) =>
+      keys.every((k) => !!this.configService.get<string>(k));
     return {
       google: has('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'),
       facebook: has('FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET'),
@@ -524,7 +529,10 @@ export class AuthController {
       // 2FA is on: the app asks for a code and finishes at /auth/2fa/verify
       params.set('twoFactorToken', twoFactorToken);
     } else {
-      params.set('error', req.socialError || 'Sign-in failed. Please try again.');
+      params.set(
+        'error',
+        req.socialError || 'Sign-in failed. Please try again.',
+      );
     }
     res.redirect(`${frontendUrl}/auth/social-callback#${params.toString()}`);
   }

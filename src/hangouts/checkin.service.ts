@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -33,11 +38,15 @@ export interface LivePoint {
 @Injectable()
 export class CheckInService {
   // hangoutId -> userId -> last shared position (ephemeral, never persisted)
-  private shares = new Map<string, Map<string, { lat: number; lng: number; at: number }>>();
+  private shares = new Map<
+    string,
+    Map<string, { lat: number; lng: number; at: number }>
+  >();
 
   constructor(
     @InjectModel(Hangout.name) private hangoutModel: Model<Hangout>,
-    @InjectModel(HangoutCheckIn.name) private checkInModel: Model<HangoutCheckIn>,
+    @InjectModel(HangoutCheckIn.name)
+    private checkInModel: Model<HangoutCheckIn>,
     @InjectModel(User.name) private userModel: Model<User>,
     private realtime: RealtimeService,
   ) {}
@@ -45,15 +54,34 @@ export class CheckInService {
   // ---- Check-in codes ----
 
   // Organizer/admin: get the code attendees scan or type (rotates only when asked or expired)
-  async ensureCode(hangoutId: string, userId: string, rotate = false, isAdmin = false) {
+  async ensureCode(
+    hangoutId: string,
+    userId: string,
+    rotate = false,
+    isAdmin = false,
+  ) {
     const hangout = await this.requireHangout(hangoutId);
     if (!isAdmin && hangout.createdBy.toString() !== userId) {
-      throw new ForbiddenException('Only the hangout organizer can show the check-in code');
+      throw new ForbiddenException(
+        'Only the hangout organizer can show the check-in code',
+      );
     }
 
-    const expiresAt = new Date(hangout.time.getTime() + hangout.durationMinutes * 60_000 + CHECK_IN_CLOSES_LATE_MS);
-    if (!rotate && hangout.checkInCode && hangout.checkInCodeExpiresAt && hangout.checkInCodeExpiresAt > new Date()) {
-      return { code: hangout.checkInCode, expiresAt: hangout.checkInCodeExpiresAt };
+    const expiresAt = new Date(
+      hangout.time.getTime() +
+        hangout.durationMinutes * 60_000 +
+        CHECK_IN_CLOSES_LATE_MS,
+    );
+    if (
+      !rotate &&
+      hangout.checkInCode &&
+      hangout.checkInCodeExpiresAt &&
+      hangout.checkInCodeExpiresAt > new Date()
+    ) {
+      return {
+        code: hangout.checkInCode,
+        expiresAt: hangout.checkInCodeExpiresAt,
+      };
     }
 
     let code = this.generateCode();
@@ -93,9 +121,13 @@ export class CheckInService {
     } else if (hasCoords) {
       const venue = this.venuePoint(hangout);
       if (!venue) {
-        throw new BadRequestException('This hangout has no map location for a proximity check-in');
+        throw new BadRequestException(
+          'This hangout has no map location for a proximity check-in',
+        );
       }
-      distanceM = Math.round(distanceKm({ lat: dto.lat!, lng: dto.lng! }, venue) * 1000);
+      distanceM = Math.round(
+        distanceKm({ lat: dto.lat!, lng: dto.lng! }, venue) * 1000,
+      );
       if (distanceM > CHECK_IN_RADIUS_M) {
         throw new BadRequestException(
           `You are about ${distanceM} m away — check in within ${CHECK_IN_RADIUS_M} m of the venue`,
@@ -103,7 +135,9 @@ export class CheckInService {
       }
       method = 'geo';
     } else {
-      throw new BadRequestException('Enter the check-in code or share your location to check in');
+      throw new BadRequestException(
+        'Enter the check-in code or share your location to check in',
+      );
     }
 
     return this.record(hangout, userId, method, distanceM);
@@ -141,7 +175,9 @@ export class CheckInService {
     await checkIn.populate('userId', 'name email');
 
     const points = await this.liveSnapshot(hangoutId);
-    const checkedInCount = await this.checkInModel.countDocuments({ hangoutId: hangout._id });
+    const checkedInCount = await this.checkInModel.countDocuments({
+      hangoutId: hangout._id,
+    });
     this.realtime.emitToRoom(`hangout_${hangoutId}`, 'checkedIn', {
       hangoutId,
       checkIn: { ...checkIn.toJSON(), checkedInAt: checkIn.createdAt },
@@ -163,7 +199,9 @@ export class CheckInService {
         .sort({ createdAt: 1 })
         .populate('userId', 'name email')
         .lean(),
-      this.checkInModel.countDocuments({ hangoutId: new Types.ObjectId(hangoutId) }),
+      this.checkInModel.countDocuments({
+        hangoutId: new Types.ObjectId(hangoutId),
+      }),
     ]);
     return { items, checkedInCount };
   }
@@ -194,10 +232,16 @@ export class CheckInService {
   }
 
   // Current sharing positions with names; optionally tells the room
-  private async emitSnapshot(hangoutId: string, broadcast = true): Promise<LivePoint[]> {
+  private async emitSnapshot(
+    hangoutId: string,
+    broadcast = true,
+  ): Promise<LivePoint[]> {
     const points = await this.liveSnapshot(hangoutId);
     if (broadcast) {
-      this.realtime.emitToRoom(`hangout_${hangoutId}`, 'liveLocation', { hangoutId, points });
+      this.realtime.emitToRoom(`hangout_${hangoutId}`, 'liveLocation', {
+        hangoutId,
+        points,
+      });
     }
     return points;
   }
@@ -211,10 +255,12 @@ export class CheckInService {
     }
     if (!byHangout.size) return [];
     const users = await this.userModel
-      .find({ _id: { $in: [...byHangout.keys()].map(id => new Types.ObjectId(id)) } })
+      .find({
+        _id: { $in: [...byHangout.keys()].map((id) => new Types.ObjectId(id)) },
+      })
       .select('name')
       .lean();
-    const names = new Map(users.map(u => [String(u._id), u.name]));
+    const names = new Map(users.map((u) => [String(u._id), u.name]));
     return [...byHangout].map(([uid, point]) => ({
       userId: uid,
       name: names.get(uid) ?? 'Someone',
@@ -238,7 +284,8 @@ export class CheckInService {
   // ---- Helpers ----
 
   private async requireHangout(hangoutId: string): Promise<Hangout> {
-    if (!Types.ObjectId.isValid(hangoutId)) throw new NotFoundException('Hangout not found');
+    if (!Types.ObjectId.isValid(hangoutId))
+      throw new NotFoundException('Hangout not found');
     const hangout = await this.hangoutModel.findById(hangoutId);
     if (!hangout) throw new NotFoundException('Hangout not found');
     if (hangout.status === HangoutStatus.CANCELLED) {
@@ -249,9 +296,11 @@ export class CheckInService {
 
   private requireMember(hangout: Hangout, userId: string) {
     const isCreator = hangout.createdBy.toString() === userId;
-    const isAttendee = hangout.attendees.some(id => id.toString() === userId);
+    const isAttendee = hangout.attendees.some((id) => id.toString() === userId);
     if (!isCreator && !isAttendee) {
-      throw new ForbiddenException('You must be part of this hangout to check in or share your location');
+      throw new ForbiddenException(
+        'You must be part of this hangout to check in or share your location',
+      );
     }
   }
 
@@ -261,7 +310,9 @@ export class CheckInService {
     const end = start + hangout.durationMinutes * 60_000;
     const now = Date.now();
     if (now < start - CHECK_IN_OPENS_EARLY_MS) {
-      throw new BadRequestException('Check-in opens 2 hours before the hangout starts');
+      throw new BadRequestException(
+        'Check-in opens 2 hours before the hangout starts',
+      );
     }
     if (now > end + CHECK_IN_CLOSES_LATE_MS) {
       throw new BadRequestException('Check-in is over for this hangout');
@@ -269,7 +320,9 @@ export class CheckInService {
   }
 
   // [lng, lat] of the venue, from the geo copy or the picked location
-  private venuePoint(hangout: Hangout): { lat: number; lng: number } | undefined {
+  private venuePoint(
+    hangout: Hangout,
+  ): { lat: number; lng: number } | undefined {
     const geo = hangout.geo ?? geoFromLocation(hangout.location);
     const [lng, lat] = geo?.coordinates ?? [];
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;

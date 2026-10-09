@@ -19,7 +19,10 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { HangoutLocationType, TravelMode } from '../schemas/hangout-location.schema';
+import {
+  HangoutLocationType,
+  TravelMode,
+} from '../schemas/hangout-location.schema';
 
 export const MAX_ROUTE_POINTS = 5000;
 
@@ -30,11 +33,15 @@ class IsLatLngPathConstraint implements ValidatorConstraintInterface {
     return (
       Array.isArray(path) &&
       path.every(
-        p =>
+        (p) =>
           Array.isArray(p) &&
           p.length === 2 &&
-          typeof p[0] === 'number' && p[0] >= -90 && p[0] <= 90 &&
-          typeof p[1] === 'number' && p[1] >= -180 && p[1] <= 180,
+          typeof p[0] === 'number' &&
+          p[0] >= -90 &&
+          p[0] <= 90 &&
+          typeof p[1] === 'number' &&
+          p[1] >= -180 &&
+          p[1] <= 180,
       )
     );
   }
@@ -63,7 +70,9 @@ export class GeoPointDto {
   @MaxLength(200)
   name?: string;
 
-  @ApiPropertyOptional({ example: 'Patan Durbar Square, Lalitpur, Bagmati Province, Nepal' })
+  @ApiPropertyOptional({
+    example: 'Patan Durbar Square, Lalitpur, Bagmati Province, Nepal',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -71,7 +80,10 @@ export class GeoPointDto {
 }
 
 export class HangoutLocationDto {
-  @ApiProperty({ enum: HangoutLocationType, example: HangoutLocationType.PLACE })
+  @ApiProperty({
+    enum: HangoutLocationType,
+    example: HangoutLocationType.PLACE,
+  })
   @IsEnum(HangoutLocationType)
   type: HangoutLocationType;
 
@@ -81,22 +93,31 @@ export class HangoutLocationDto {
   @MaxLength(300)
   name: string;
 
-  @ApiPropertyOptional({ type: GeoPointDto, description: 'Required when type is "place"' })
-  @ValidateIf(o => o.type === HangoutLocationType.PLACE)
+  @ApiPropertyOptional({
+    type: GeoPointDto,
+    description: 'Required when type is "place"',
+  })
+  @ValidateIf((o) => o.type === HangoutLocationType.PLACE)
   @IsDefined()
   @ValidateNested()
   @Type(() => GeoPointDto)
   point?: GeoPointDto;
 
-  @ApiPropertyOptional({ type: GeoPointDto, description: 'Required when type is "route"' })
-  @ValidateIf(o => o.type === HangoutLocationType.ROUTE)
+  @ApiPropertyOptional({
+    type: GeoPointDto,
+    description: 'Required when type is "route"',
+  })
+  @ValidateIf((o) => o.type === HangoutLocationType.ROUTE)
   @IsDefined()
   @ValidateNested()
   @Type(() => GeoPointDto)
   from?: GeoPointDto;
 
-  @ApiPropertyOptional({ type: GeoPointDto, description: 'Required when type is "route"' })
-  @ValidateIf(o => o.type === HangoutLocationType.ROUTE)
+  @ApiPropertyOptional({
+    type: GeoPointDto,
+    description: 'Required when type is "route"',
+  })
+  @ValidateIf((o) => o.type === HangoutLocationType.ROUTE)
   @IsDefined()
   @ValidateNested()
   @Type(() => GeoPointDto)
@@ -104,7 +125,10 @@ export class HangoutLocationDto {
 
   @ApiPropertyOptional({
     description: `Route line as [lat, lng] pairs (max ${MAX_ROUTE_POINTS})`,
-    example: [[27.7154, 85.3123], [27.7172, 85.3240]],
+    example: [
+      [27.7154, 85.3123],
+      [27.7172, 85.324],
+    ],
   })
   @IsOptional()
   @IsArray()

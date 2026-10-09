@@ -312,6 +312,120 @@ export class EmailService implements OnModuleInit {
     });
   }
 
+  async sendAccountDeletionScheduledEmail(
+    email: string,
+    name: string,
+    cancelUrl: string,
+    purgeDate: Date,
+  ): Promise<void> {
+    const purgeText = purgeDate.toUTCString();
+    const mailOptions = {
+      from: this.from,
+      to: email,
+      subject: 'Your Hangouts account is scheduled for deletion',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #333; margin-bottom: 10px;">🎉 Hangouts</h1>
+            <h2 style="color: #666; font-weight: normal;">Account Deletion Scheduled</h2>
+          </div>
+
+          <div style="background-color: #fff4f4; border: 1px solid #f5c2c7; padding: 30px; border-radius: 10px; margin-bottom: 30px;">
+            <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+              Hi <strong>${name}</strong>,
+            </p>
+
+            <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+              We received a request to delete your Hangouts account. Your account is now
+              deactivated and will be permanently erased on <strong>${purgeText}</strong>.
+            </p>
+
+            <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+              Changed your mind? Restore your account before then with the button below:
+            </p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${cancelUrl}"
+                 style="background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                Cancel Deletion
+              </a>
+            </div>
+
+            <p style="font-size: 14px; color: #666; text-align: center; word-break: break-all;">
+              If the button does not work, paste this into your browser:<br>
+              ${cancelUrl}
+            </p>
+          </div>
+
+          <div style="border-top: 1px solid #eee; padding-top: 20px;">
+            <p style="font-size: 14px; color: #666;">
+              If you did not request this, cancel the deletion immediately and change your password.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `
+        Hi ${name},
+
+        We received a request to delete your Hangouts account. Your account is now
+        deactivated and will be permanently erased on ${purgeText}.
+
+        Changed your mind? Restore your account before then:
+        ${cancelUrl}
+
+        If you did not request this, cancel the deletion immediately and change your password.
+      `,
+    };
+
+    await this.deliver(mailOptions, {
+      label: 'account deletion scheduled',
+      to: email,
+      subject: mailOptions.subject,
+      link: cancelUrl,
+    });
+  }
+
+  async sendAccountDeletionCancelledEmail(
+    email: string,
+    name: string,
+  ): Promise<void> {
+    const mailOptions = {
+      from: this.from,
+      to: email,
+      subject: 'Your Hangouts account deletion was cancelled',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #333; margin-bottom: 10px;">🎉 Hangouts</h1>
+            <h2 style="color: #666; font-weight: normal;">Account Restored</h2>
+          </div>
+
+          <div style="background-color: #f0fff4; border: 1px solid #badbcc; padding: 30px; border-radius: 10px; margin-bottom: 30px;">
+            <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+              Hi <strong>${name}</strong>,
+            </p>
+            <p style="font-size: 16px; color: #333;">
+              Good news — the deletion of your Hangouts account has been cancelled and
+              your account is active again. No data was removed.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `
+        Hi ${name},
+
+        Good news — the deletion of your Hangouts account has been cancelled and your
+        account is active again. No data was removed.
+      `,
+    };
+
+    await this.deliver(mailOptions, {
+      label: 'account deletion cancelled',
+      to: email,
+      subject: mailOptions.subject,
+    });
+  }
+
   generateOTP(): string {
     // crypto, not Math.random: OTPs must not be predictable.
     return randomInt(0, 1000000).toString().padStart(6, '0');

@@ -16,4 +16,5 @@ export class ChatParticipant extends Document {
   canSeeHistory: boolean;
 }
 
-export const ChatParticipantSchema = SchemaFactory.createForClass(ChatParticipant);
+export const ChatParticipantSchema =
+  SchemaFactory.createForClass(ChatParticipant);
