@@ -17,6 +17,7 @@ import {
   currentTimeStep,
   matchTotp,
   totpCode,
+  totpDriftSeconds,
 } from './two-factor/totp';
 
 jest.setTimeout(60000);
@@ -44,8 +45,21 @@ describe('TOTP helpers', () => {
     const now = 59 * 1000 + 30 * 1000 * 10; // step 11
     expect(matchTotp(secret, totpCode(secret, 12), -1, now)).toBe(12);
     expect(matchTotp(secret, totpCode(secret, 12), 12, now)).toBeNull();
-    expect(matchTotp(secret, totpCode(secret, 14), -1, now)).toBeNull();
+    expect(matchTotp(secret, totpCode(secret, 14), -1, now)).toBeNull(); // 3 steps away
     expect(matchTotp(secret, 'abcdef', -1, now)).toBeNull();
+  });
+
+  it('tolerates clocks up to 60s apart (2 steps either way)', () => {
+    const now = 59 * 1000 + 30 * 1000 * 10; // step 11
+    expect(matchTotp(secret, totpCode(secret, 13), -1, now)).toBe(13);
+    expect(matchTotp(secret, totpCode(secret, 9), -1, now)).toBe(9);
+  });
+
+  it('explains rejected codes by how far off the clock is', () => {
+    const now = 59 * 1000 + 30 * 1000 * 10; // step 11
+    expect(totpDriftSeconds(secret, totpCode(secret, 16), now)).toBe(150);
+    expect(totpDriftSeconds(secret, totpCode(secret, 5), now)).toBe(-180);
+    expect(totpDriftSeconds(secret, totpCode(secret, 500), now)).toBeNull();
   });
 });
 
@@ -306,6 +320,119 @@ describe('two-factor authentication', () => {
     });
     expect(signin.body.data!.access_token).toBeDefined();
     expect(signin.body.data!.twoFactorRequired).toBeUndefined();
+  });
+
+  it('moves 2FA to a new authenticator app, keeping recovery codes', async () => {
+    const { email, session, secret, step, recoveryCodes } =
+      await userWith2fa('reset');
+
+    const wrong = await call(
+      'POST',
+      '/auth/2fa/reset',
+      { code: 'zzzzz-zzzzz' },
+      session,
+    );
+    expect(wrong.status).toBe(400);
+
+    // Old phone lost: a recovery code starts the reset
+    const start = await call(
+      'POST',
+      '/auth/2fa/reset',
+      { code: recoveryCodes[0] },
+      session,
+    );
+    expect(start.status).toBe(201);
+    const newSecret = start.body.data!.secret as string;
+    expect(newSecret).not.toBe(secret);
+
+    const badConfirm = await call(
+      'POST',
+      '/auth/2fa/reset/confirm',
+      { code: totpCode(secret, step + 1) }, // a code from the OLD app
+      session,
+    );
+    expect(badConfirm.status).toBe(400);
+
+    const confirm = await call(
+      'POST',
+      '/auth/2fa/reset/confirm',
+      { code: totpCode(newSecret, currentTimeStep()) },
+      session,
+    );
+    expect(confirm.status).toBe(201);
+
+    // Sign-in now takes the new app's codes, not the old one's
+    const signin = await call('POST', '/auth/signin', {
+      email,
+      password: PASSWORD,
+    });
+    const twoFactorToken = signin.body.data!.twoFactorToken as string;
+    const oldCode = await call('POST', '/auth/2fa/verify', {
+      twoFactorToken,
+      code: totpCode(secret, currentTimeStep() + 2),
+    });
+    expect(oldCode.status).toBe(401);
+    const newCode = await call('POST', '/auth/2fa/verify', {
+      twoFactorToken,
+      code: totpCode(newSecret, currentTimeStep() + 1),
+    });
+    expect(newCode.status).toBe(201);
+
+    const status = await call('GET', '/auth/2fa/status', undefined, session);
+    expect(status.body.data).toEqual({
+      enabled: true,
+      recoveryCodesRemaining: 9,
+    });
+  });
+
+  it('resets the authenticator from the sign-in code page and signs in', async () => {
+    const { email, secret, recoveryCodes } = await userWith2fa('login-reset');
+    const signin = await call('POST', '/auth/signin', {
+      email,
+      password: PASSWORD,
+    });
+    const twoFactorToken = signin.body.data!.twoFactorToken as string;
+
+    const wrong = await call('POST', '/auth/2fa/verify/reset', {
+      twoFactorToken,
+      code: 'zzzzz-zzzzz',
+    });
+    expect(wrong.status).toBe(401);
+
+    const start = await call('POST', '/auth/2fa/verify/reset', {
+      twoFactorToken,
+      code: recoveryCodes[0],
+    });
+    expect(start.status).toBe(201);
+    const { secret: newSecret, resetToken } = start.body.data as {
+      secret: string;
+      resetToken: string;
+    };
+    expect(newSecret).not.toBe(secret);
+
+    // The reset token is not a session
+    const asSession = await call('GET', '/auth/me', undefined, resetToken);
+    expect(asSession.status).toBe(401);
+    // ...and the sign-in token can't stand in for it
+    const swapped = await call('POST', '/auth/2fa/verify/reset/confirm', {
+      resetToken: twoFactorToken,
+      code: totpCode(newSecret, currentTimeStep()),
+    });
+    expect(swapped.status).toBe(401);
+
+    const confirm = await call('POST', '/auth/2fa/verify/reset/confirm', {
+      resetToken,
+      code: totpCode(newSecret, currentTimeStep()),
+    });
+    expect(confirm.status).toBe(201);
+    expect(confirm.body.data!.user.email).toBe(email);
+    const me = await call(
+      'GET',
+      '/auth/me',
+      undefined,
+      confirm.body.data!.access_token,
+    );
+    expect(me.status).toBe(200);
   });
 
   it('locks code checks after 5 wrong codes', async () => {

@@ -102,6 +102,19 @@ export class AuthService {
     return this.issueTokenForUser(user);
   }
 
+  /** Finishes an authenticator reset started on the sign-in code page, and signs in. */
+  async confirmTwoFactorResetFromLogin(resetToken: string, code: string) {
+    const userId = await this.twoFactorService.confirmResetFromLogin(
+      resetToken,
+      code,
+    );
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Invalid sign-in token.');
+    }
+    return this.issueTokenForUser(user);
+  }
+
   async validateUser(email: string, password: string): Promise<any> {
     const user = await this.userModel.findOne({ email });
     if (user && (await bcrypt.compare(password, user.passwordHash))) {

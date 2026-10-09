@@ -28,6 +28,7 @@ function createService(docs: any[]) {
     {} as any,
     { record: jest.fn(), remove: jest.fn() } as any, // activity log
     { friendsGoing: jest.fn().mockResolvedValue(new Map()) } as any, // nobody followed
+    {} as any, // tickets
   );
   return { service, hangoutModel, query };
 }

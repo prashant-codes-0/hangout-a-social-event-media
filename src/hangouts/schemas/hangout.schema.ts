@@ -103,6 +103,10 @@ export class Hangout extends Document {
   @Prop({ default: 10 })
   capacity: number;
 
+  // Ticket price in rupees, paid to the organizer outside the app; 0 = free
+  @Prop({ default: 0, min: 0 })
+  price: number;
+
   @Prop({ default: true })
   isPublic: boolean;
 

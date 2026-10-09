@@ -106,6 +106,33 @@ export class CheckInService {
       throw new BadRequestException('Enter the check-in code or share your location to check in');
     }
 
+    return this.record(hangout, userId, method, distanceM);
+  }
+
+  /**
+   * The organizer scanned an attendee's ticket at the door. Returns the
+   * existing check-in instead of a new one when they are already in.
+   */
+  async checkInWithTicket(hangout: Hangout, userId: string) {
+    this.requireWindow(hangout);
+    const existing = await this.checkInModel
+      .findOne({ hangoutId: hangout._id, userId: new Types.ObjectId(userId) })
+      .lean();
+    if (existing) {
+      return { alreadyCheckedIn: true, checkedInAt: existing.createdAt };
+    }
+    const { checkIn } = await this.record(hangout, userId, 'ticket');
+    return { alreadyCheckedIn: false, checkedInAt: checkIn.checkedInAt };
+  }
+
+  // Saves the check-in and tells everyone viewing the hangout
+  private async record(
+    hangout: Hangout,
+    userId: string,
+    method: HangoutCheckIn['method'],
+    distanceM?: number,
+  ) {
+    const hangoutId = String(hangout._id);
     const checkIn = await this.checkInModel.findOneAndUpdate(
       { hangoutId: hangout._id, userId: new Types.ObjectId(userId) },
       { $set: { method, ...(distanceM != null ? { distanceM } : {}) } },
