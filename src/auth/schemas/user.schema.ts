@@ -84,6 +84,39 @@ export class User extends Document {
   @Prop({ index: true, sparse: true })
   facebookId?: string;
 
+  // ---- Two-factor authentication (authenticator app) ----
+  // The secret fields are select:false so they never reach API responses;
+  // TwoFactorService selects them explicitly when it needs them.
+
+  @Prop({ default: false })
+  twoFactorEnabled: boolean;
+
+  /** The active TOTP secret, AES-256-GCM encrypted (see two-factor/totp.ts). */
+  @Prop({ select: false })
+  twoFactorSecret?: string;
+
+  /** A secret shown during setup that becomes active once a code confirms it. */
+  @Prop({ select: false })
+  twoFactorPendingSecret?: string;
+
+  @Prop({ select: false })
+  twoFactorPendingExpires?: Date;
+
+  /** SHA-256 digests of the unused one-time recovery codes. */
+  @Prop({ type: [String], select: false, default: undefined })
+  twoFactorRecoveryCodes?: string[];
+
+  /** Time step of the last accepted code, so a code can't be used twice. */
+  @Prop({ select: false })
+  twoFactorLastUsedStep?: number;
+
+  /** Wrong codes in a row; reaching the limit locks 2FA checks for a while. */
+  @Prop({ select: false, default: 0 })
+  twoFactorFailedAttempts?: number;
+
+  @Prop({ select: false })
+  twoFactorLockedUntil?: Date;
+
   @Prop({ type: UserSettingsSchema, default: () => ({}) })
   settings: UserSettings;
 

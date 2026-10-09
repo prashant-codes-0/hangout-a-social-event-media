@@ -26,6 +26,11 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { SendOTPDto, VerifyOTPDto, ResendOTPDto } from './dto/otp.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
 import { UpdateSettingsDto } from './dto/settings.dto';
+import {
+  TwoFactorCodeDto,
+  VerifyTwoFactorLoginDto,
+} from './dto/two-factor.dto';
+import { TwoFactorService } from './two-factor/two-factor.service';
 import { AdminGuard } from '../common/guards/admin.guard';
 import {
   GoogleEnabledGuard,
@@ -45,6 +50,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
+    private twoFactorService: TwoFactorService,
   ) {}
 
   @Get('me/settings')
@@ -267,6 +273,92 @@ export class AuthController {
     );
   }
 
+  // ---- Two-factor authentication (authenticator app) ----
+
+  @Post('2fa/verify')
+  @ApiOperation({
+    summary:
+      'Finish signing in with 2FA: trade the twoFactorToken from sign-in and a code for a session',
+  })
+  @ApiResponse({ status: 201, description: '{ access_token, user }' })
+  @ApiResponse({
+    status: 401,
+    description: 'Wrong code, or the sign-in token expired',
+  })
+  @ApiResponse({ status: 429, description: 'Too many wrong codes' })
+  @ApiBody({ type: VerifyTwoFactorLoginDto })
+  async verifyTwoFactorLogin(@Body() dto: VerifyTwoFactorLoginDto) {
+    return this.authService.verifyTwoFactorLogin(dto.twoFactorToken, dto.code);
+  }
+
+  @Get('2fa/status')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Whether 2FA is on, and recovery codes left' })
+  @ApiResponse({
+    status: 200,
+    description: '{ enabled, recoveryCodesRemaining }',
+  })
+  getTwoFactorStatus(@Request() req) {
+    return this.twoFactorService.getStatus(req.user.id);
+  }
+
+  @Post('2fa/setup')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Start turning on 2FA: returns a secret and otpauth:// URL for the QR code',
+  })
+  @ApiResponse({
+    status: 201,
+    description: '{ secret, otpauthUrl, expiresInMinutes }',
+  })
+  @ApiResponse({ status: 400, description: '2FA is already on' })
+  startTwoFactorSetup(@Request() req) {
+    return this.twoFactorService.startSetup(req.user.id);
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Confirm setup with a code from the app; returns one-time recovery codes',
+  })
+  @ApiResponse({ status: 201, description: '{ enabled, recoveryCodes }' })
+  @ApiResponse({ status: 400, description: 'Wrong code or setup expired' })
+  @ApiBody({ type: TwoFactorCodeDto })
+  enableTwoFactor(@Request() req, @Body() dto: TwoFactorCodeDto) {
+    return this.twoFactorService.enable(req.user.id, dto.code);
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Turn off 2FA (needs a current or recovery code)' })
+  @ApiResponse({ status: 201, description: '{ enabled: false }' })
+  @ApiResponse({ status: 400, description: 'Wrong code' })
+  @ApiResponse({ status: 429, description: 'Too many wrong codes' })
+  @ApiBody({ type: TwoFactorCodeDto })
+  disableTwoFactor(@Request() req, @Body() dto: TwoFactorCodeDto) {
+    return this.twoFactorService.disable(req.user.id, dto.code);
+  }
+
+  @Post('2fa/recovery-codes')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Replace your recovery codes (needs a current or recovery code)',
+  })
+  @ApiResponse({ status: 201, description: '{ recoveryCodes }' })
+  @ApiResponse({ status: 400, description: 'Wrong code' })
+  @ApiResponse({ status: 429, description: 'Too many wrong codes' })
+  @ApiBody({ type: TwoFactorCodeDto })
+  regenerateRecoveryCodes(@Request() req, @Body() dto: TwoFactorCodeDto) {
+    return this.twoFactorService.regenerateRecoveryCodes(req.user.id, dto.code);
+  }
+
   // ---- Social sign-in (Google / Facebook) ----
 
   @Get('me')
@@ -353,9 +445,13 @@ export class AuthController {
       .get<string>('FRONTEND_URL', 'http://localhost:4200')
       .replace(/\/+$/, '');
     const token = req.user?.access_token;
+    const twoFactorToken = req.user?.twoFactorToken;
     const params = new URLSearchParams({ provider });
     if (token) {
       params.set('token', token);
+    } else if (twoFactorToken) {
+      // 2FA is on: the app asks for a code and finishes at /auth/2fa/verify
+      params.set('twoFactorToken', twoFactorToken);
     } else {
       params.set('error', req.socialError || 'Sign-in failed. Please try again.');
     }

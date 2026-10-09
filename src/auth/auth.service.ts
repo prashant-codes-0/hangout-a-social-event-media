@@ -15,6 +15,7 @@ import { User, UserRole } from './schemas/user.schema';
 import { SignUpDto, SignInDto } from './dto/auth.dto';
 import { UpdateSettingsDto, SettingsResponse } from './dto/settings.dto';
 import { EmailService } from '../common/services/email.service';
+import { TwoFactorService } from './two-factor/two-factor.service';
 
 /** Password reset links live this long, and each link works exactly once. */
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -29,6 +30,7 @@ export class AuthService {
     private jwtService: JwtService,
     private emailService: EmailService,
     private configService: ConfigService,
+    private twoFactorService: TwoFactorService,
   ) {}
 
   async signUp(signUpDto: SignUpDto) {
@@ -84,20 +86,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate JWT token
-    const payload = { sub: user._id, email: user.email, role: user.role };
-    const token = this.jwtService.sign(payload);
+    return this.completeSignIn(user);
+  }
 
-    return {
-      access_token: token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        verified: user.verified,
-      },
-    };
+  /** Second sign-in step when 2FA is on: swaps the challenge token + code for a session. */
+  async verifyTwoFactorLogin(twoFactorToken: string, code: string) {
+    const userId = await this.twoFactorService.verifyLoginChallenge(
+      twoFactorToken,
+      code,
+    );
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Invalid sign-in token.');
+    }
+    return this.issueTokenForUser(user);
   }
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -125,6 +127,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       verified: user.verified,
+      twoFactorEnabled: !!user.twoFactorEnabled,
       // Community reputation (post-hangout ratings + badges)
       ratingAvg: user.ratingAvg ?? 0,
       ratingCount: user.ratingCount ?? 0,
@@ -211,6 +214,22 @@ export class AuthService {
       await user.save();
     }
 
+    return this.completeSignIn(user);
+  }
+
+  /**
+   * The end of every sign-in path: a session token, or when the account has
+   * 2FA on, a short-lived challenge token to trade for one at /auth/2fa/verify.
+   */
+  private completeSignIn(user: User) {
+    if (user.twoFactorEnabled) {
+      return {
+        message:
+          'Enter the code from your authenticator app to finish signing in.',
+        twoFactorRequired: true as const,
+        twoFactorToken: this.twoFactorService.createLoginChallenge(user),
+      };
+    }
     return this.issueTokenForUser(user);
   }
 

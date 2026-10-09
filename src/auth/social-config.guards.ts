@@ -39,7 +39,7 @@ function makeSocialEnabledGuard(provider: 'google' | 'facebook') {
 
 /** Request seen by the OAuth callback handlers. */
 export interface SocialCallbackRequest {
-  user?: { access_token?: string } | null;
+  user?: { access_token?: string; twoFactorToken?: string } | null;
   socialError?: string;
 }
 

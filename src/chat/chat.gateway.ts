@@ -87,6 +87,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             // Verify JWT token
             const payload = this.jwtService.verify(token);
+            // Purpose tokens (e.g. the 2FA sign-in challenge) are not sessions
+            if (payload.purpose) {
+                client.disconnect();
+                return;
+            }
             client.userId = payload.sub;
             client.user = payload;
             // Also on socket.data so it is readable via fetchSockets() (who is viewing a hangout chat)
