@@ -61,6 +61,15 @@ describe('social login (Google / Facebook)', () => {
     name: 'Google Tester',
   });
 
+  // These accounts never have 2FA on, so sign-in always yields a session
+  const socialSignIn = async (
+    profile: Parameters<AuthService['signInWithSocial']>[0],
+  ) => {
+    const result = await authService.signInWithSocial(profile);
+    if (!('access_token' in result)) throw new Error('Unexpected 2FA challenge');
+    return result;
+  };
+
   beforeAll(async () => {
     // Make sure the env looks unconfigured no matter what the host .env holds,
     // so the "not configured" guards are what we exercise.
@@ -128,7 +137,7 @@ describe('social login (Google / Facebook)', () => {
 
   it('creates and verifies a brand-new account from a Google login', async () => {
     const email = `social-new-${STAMP}@example.com`;
-    const result = await authService.signInWithSocial(googleProfile(email));
+    const result = await socialSignIn(googleProfile(email));
     expect(result.access_token).toBeTruthy();
     expect(result.user.email).toBe(email);
     expect(result.user.verified).toBe(true);
@@ -141,18 +150,18 @@ describe('social login (Google / Facebook)', () => {
 
   it('returns the same account on a repeat Google login', async () => {
     const email = `social-repeat-${STAMP}@example.com`;
-    const first = await authService.signInWithSocial(googleProfile(email));
-    const second = await authService.signInWithSocial(googleProfile(email));
+    const first = await socialSignIn(googleProfile(email));
+    const second = await socialSignIn(googleProfile(email));
     expect(String(second.user.id)).toBe(String(first.user.id));
     expect(await users.countDocuments({ email })).toBe(1);
   });
 
   it('links a Facebook login to the existing Google account (same email)', async () => {
     const email = `social-link-${STAMP}@example.com`;
-    const google = await authService.signInWithSocial(
+    const google = await socialSignIn(
       googleProfile(email, `g-${STAMP}`),
     );
-    const facebook = await authService.signInWithSocial({
+    const facebook = await socialSignIn({
       provider: 'facebook',
       providerId: `fb-${STAMP}`,
       email,
@@ -175,7 +184,7 @@ describe('social login (Google / Facebook)', () => {
       verified: false,
     });
 
-    const social = await authService.signInWithSocial(
+    const social = await socialSignIn(
       googleProfile(email, `gp-${STAMP}`),
     );
     expect(social.user.verified).toBe(true);
@@ -195,7 +204,7 @@ describe('social login (Google / Facebook)', () => {
       email: null,
       name: null,
     };
-    await expect(authService.signInWithSocial(noEmail)).rejects.toThrow(
+    await expect(socialSignIn(noEmail)).rejects.toThrow(
       /did not share your email address/,
     );
   });
@@ -211,7 +220,7 @@ describe('social login (Google / Facebook)', () => {
 
     // Someone puts the victim's address on their own Google account
     await expect(
-      authService.signInWithSocial(googleProfile(email, `attacker-${STAMP}`, false)),
+      socialSignIn(googleProfile(email, `attacker-${STAMP}`, false)),
     ).rejects.toThrow(/isn't verified/);
 
     const stored = await users.findById(victim._id).lean();
@@ -227,7 +236,7 @@ describe('social login (Google / Facebook)', () => {
       passwordHash: await bcrypt.hash('Pass12345', 10),
     });
 
-    const social = await authService.signInWithSocial(
+    const social = await socialSignIn(
       googleProfile(typed.toLowerCase(), `gm-${STAMP}`),
     );
     expect(String(social.user.id)).toBe(String(existing._id));
@@ -235,10 +244,10 @@ describe('social login (Google / Facebook)', () => {
   });
 
   it('keeps the account linked to a provider id even if its email changed', async () => {
-    const first = await authService.signInWithSocial(
+    const first = await socialSignIn(
       googleProfile(`before-${STAMP}@example.com`, `gchange-${STAMP}`),
     );
-    const later = await authService.signInWithSocial(
+    const later = await socialSignIn(
       googleProfile(`after-${STAMP}@example.com`, `gchange-${STAMP}`),
     );
     expect(String(later.user.id)).toBe(String(first.user.id));
@@ -252,7 +261,7 @@ describe('social login (Google / Facebook)', () => {
 
   it('serves /auth/me to a token issued by a social login', async () => {
     const email = `social-me-${STAMP}@example.com`;
-    const { access_token } = await authService.signInWithSocial(
+    const { access_token } = await socialSignIn(
       googleProfile(email, `gme-${STAMP}`),
     );
 

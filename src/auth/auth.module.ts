@@ -15,6 +15,7 @@ import {
   FacebookEnabledGuard,
 } from './social-config.guards';
 import { EmailService } from '../common/services/email.service';
+import { TwoFactorService } from './two-factor/two-factor.service';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { EmailService } from '../common/services/email.service';
   ],
   providers: [
     AuthService,
+    TwoFactorService,
     JwtStrategy,
     LocalStrategy,
     EmailService,

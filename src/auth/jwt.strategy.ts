@@ -18,6 +18,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    // Purpose tokens (e.g. the 2FA sign-in challenge) share the signing key but
+    // are not sessions: they only unlock their own endpoint.
+    if (payload?.purpose) {
+      throw new UnauthorizedException();
+    }
     const user = await this.authService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException();
